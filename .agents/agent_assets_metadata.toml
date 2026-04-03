@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "mB9EUw6dRbAfpGSq4Jm3z"
+uri = "file://artifacts/couple-chat/assets/images/icon.png"
+type = "image"
+title = "couple chat heart icon"
