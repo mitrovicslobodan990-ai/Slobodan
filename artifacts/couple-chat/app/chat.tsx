@@ -4,7 +4,6 @@ import {
   FlatList,
   Image,
   Platform,
-  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -18,18 +17,82 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { useTheme } from "@/context/ThemeContext";
 import { MessageBubble } from "@/components/MessageBubble";
 import { GifPicker } from "@/components/GifPicker";
 import { MoodPicker } from "@/components/MoodPicker";
 
+function HeaderAvatar({
+  avatarBase64,
+  mood,
+  size = 44,
+  borderColor,
+  onPress,
+}: {
+  avatarBase64?: string;
+  mood: string;
+  size?: number;
+  borderColor: string;
+  onPress?: () => void;
+}) {
+  const uri = avatarBase64 ? `data:image/jpeg;base64,${avatarBase64}` : null;
+  const content = uri ? (
+    <Image
+      source={{ uri }}
+      style={{ width: size, height: size, borderRadius: size / 2 }}
+    />
+  ) : (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: "rgba(255,255,255,0.15)",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text style={{ fontSize: size * 0.5 }}>{mood}</Text>
+    </View>
+  );
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={onPress ? 0.75 : 1}
+      style={{
+        borderRadius: size / 2,
+        borderWidth: 2,
+        borderColor,
+        overflow: "hidden",
+      }}
+    >
+      {content}
+    </TouchableOpacity>
+  );
+}
+
 export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { currentUser, partner, messages, sendMessage, sendPoke, giphyApiKey, updateMood } = useApp();
+  const { palette, isFullscreen } = useTheme();
+  const {
+    currentUser,
+    partner,
+    messages,
+    sendMessage,
+    sendPoke,
+    giphyApiKey,
+    updateMood,
+  } = useApp();
   const [text, setText] = useState("");
   const [gifPickerVisible, setGifPickerVisible] = useState(false);
   const [moodPickerVisible, setMoodPickerVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+
+  const topPad = isFullscreen
+    ? 10
+    : insets.top + (Platform.OS === "web" ? 67 : 0);
 
   const handleSend = useCallback(async () => {
     if (!text.trim()) return;
@@ -77,38 +140,76 @@ export default function ChatScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
-
       {/* Header */}
       <View
         style={[
           styles.header,
-          {
-            backgroundColor: colors.primary,
-            paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0),
-          },
+          { backgroundColor: palette.headerBg, paddingTop: topPad },
         ]}
       >
-        <View style={styles.headerLeft}>
-          <TouchableOpacity
+        {/* My avatar + mood picker trigger */}
+        <TouchableOpacity
+          onPress={() => setMoodPickerVisible(true)}
+          style={styles.mySection}
+        >
+          <HeaderAvatar
+            avatarBase64={currentUser.avatarBase64}
+            mood={currentUser.mood}
+            size={42}
+            borderColor={colors.primary}
             onPress={() => setMoodPickerVisible(true)}
-            style={styles.myMoodBtn}
+          />
+          <View
+            style={[styles.moodBadge, { backgroundColor: colors.primary + "30" }]}
           >
-            <Text style={styles.moodEmoji}>{currentUser.mood}</Text>
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.headerTitle}>{partner.name}</Text>
-            <Text style={styles.headerSub}>● Online</Text>
+            <Text style={styles.moodBadgeEmoji}>{currentUser.mood}</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Center: partner name */}
+        <View style={styles.headerCenter}>
+          <Text style={[styles.partnerName, { color: colors.foreground }]}>
+            {partner.name}
+          </Text>
+          <View style={styles.onlineRow}>
+            <View
+              style={[styles.onlineDot, { backgroundColor: colors.primary }]}
+            />
+            <Text style={[styles.onlineLabel, { color: colors.mutedForeground }]}>
+              Online
+            </Text>
           </View>
         </View>
 
-        <View style={styles.headerRight}>
-          <View style={styles.partnerMoodContainer}>
-            <Text style={styles.partnerMoodLabel}>Raspoloženje</Text>
-            <Text style={styles.partnerMoodEmoji}>{partner.mood}</Text>
+        {/* Partner section: mood + avatar + poke */}
+        <View style={styles.partnerSection}>
+          {/* Partner mood badge */}
+          <View
+            style={[
+              styles.partnerMoodWrap,
+              { backgroundColor: colors.accent + "25", borderColor: colors.accent + "40" },
+            ]}
+          >
+            <Text style={{ fontSize: 9, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+              raspoloženje
+            </Text>
+            <Text style={{ fontSize: 20 }}>{partner.mood}</Text>
           </View>
-          <TouchableOpacity onPress={handlePoke} style={styles.pokeBtn}>
-            <Text style={styles.pokeBtnText}>👉</Text>
+
+          {/* Partner avatar */}
+          <HeaderAvatar
+            avatarBase64={partner.avatarBase64}
+            mood={partner.mood}
+            size={42}
+            borderColor={colors.accent}
+          />
+
+          {/* Poke button */}
+          <TouchableOpacity
+            onPress={handlePoke}
+            style={[styles.pokeBtn, { backgroundColor: colors.accent + "25" }]}
+          >
+            <Text style={{ fontSize: 20 }}>👉</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -127,15 +228,20 @@ export default function ChatScreen() {
             styles.messageList,
             {
               paddingBottom: 12,
-              paddingTop: Platform.OS === "web" ? 34 : insets.bottom + 12,
+              paddingTop:
+                Platform.OS === "web" ? 34 : insets.bottom + 12,
             },
           ]}
           showsVerticalScrollIndicator={false}
-          scrollEnabled
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
-            <MessageBubble message={item} isMe={item.senderId === "me"} />
+            <MessageBubble
+              message={item}
+              isMe={item.senderId === "me"}
+              currentUser={currentUser}
+              partner={partner}
+            />
           )}
         />
 
@@ -146,7 +252,8 @@ export default function ChatScreen() {
             {
               backgroundColor: colors.card,
               borderTopColor: colors.border,
-              paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 4,
+              paddingBottom:
+                Platform.OS === "web" ? 34 : insets.bottom + 4,
             },
           ]}
         >
@@ -154,7 +261,7 @@ export default function ChatScreen() {
             onPress={() => setGifPickerVisible(true)}
             style={[styles.iconBtn, { backgroundColor: colors.muted }]}
           >
-            <Text style={styles.gifBtnText}>GIF</Text>
+            <Text style={[styles.gifBtnText, { color: colors.primary }]}>GIF</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={handlePickImage}
@@ -177,7 +284,6 @@ export default function ChatScreen() {
             onChangeText={setText}
             multiline
             maxLength={1000}
-            returnKeyType="default"
           />
           <TouchableOpacity
             onPress={handleSend}
@@ -192,7 +298,7 @@ export default function ChatScreen() {
             <Feather
               name="send"
               size={20}
-              color={text.trim() ? "#fff" : colors.mutedForeground}
+              color={text.trim() ? colors.primaryForeground : colors.mutedForeground}
             />
           </TouchableOpacity>
         </View>
@@ -216,82 +322,81 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 12,
+    paddingBottom: 10,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 8,
   },
-  headerLeft: {
-    flexDirection: "row",
+  mySection: {
     alignItems: "center",
-    gap: 12,
+    position: "relative",
   },
-  myMoodBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.2)",
+  moodBadge: {
+    position: "absolute",
+    bottom: -4,
+    right: -4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.5)",
   },
-  moodEmoji: {
-    fontSize: 26,
+  moodBadgeEmoji: {
+    fontSize: 13,
   },
-  headerTitle: {
-    color: "#fff",
-    fontSize: 17,
-    fontFamily: "Inter_600SemiBold",
+  headerCenter: {
+    alignItems: "center",
+    flex: 1,
+    paddingHorizontal: 8,
   },
-  headerSub: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
+  partnerName: {
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
   },
-  headerRight: {
+  onlineRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 4,
+    marginTop: 2,
   },
-  partnerMoodContainer: {
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  onlineDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
   },
-  partnerMoodLabel: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 9,
+  onlineLabel: {
+    fontSize: 11,
     fontFamily: "Inter_400Regular",
   },
-  partnerMoodEmoji: {
-    fontSize: 22,
+  partnerSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  partnerMoodWrap: {
+    alignItems: "center",
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
   },
   pokeBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.25)",
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
   },
-  pokeBtnText: {
-    fontSize: 22,
-  },
   messageList: {
-    paddingHorizontal: 4,
+    paddingHorizontal: 0,
   },
   inputBar: {
     flexDirection: "row",
@@ -312,7 +417,6 @@ const styles = StyleSheet.create({
   gifBtnText: {
     fontSize: 11,
     fontFamily: "Inter_700Bold",
-    color: "#e84393",
   },
   input: {
     flex: 1,

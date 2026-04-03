@@ -7,31 +7,84 @@ import {
   View,
 } from "react-native";
 import { useColors } from "@/hooks/useColors";
-import { Message } from "@/context/AppContext";
+import { Message, UserProfile } from "@/context/AppContext";
 import { PhotoViewer } from "./PhotoViewer";
 
 interface MessageBubbleProps {
   message: Message;
   isMe: boolean;
+  currentUser: UserProfile;
+  partner: UserProfile;
 }
 
 function formatTime(ts: number) {
   const date = new Date(ts);
-  return date.toLocaleTimeString("bs-BA", { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleTimeString("bs-BA", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-export function MessageBubble({ message, isMe }: MessageBubbleProps) {
+function Avatar({
+  user,
+  size = 32,
+}: {
+  user: UserProfile;
+  size?: number;
+}) {
+  const colors = useColors();
+  const uri = user.avatarBase64
+    ? `data:image/jpeg;base64,${user.avatarBase64}`
+    : null;
+
+  return uri ? (
+    <Image
+      source={{ uri }}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        borderWidth: 1.5,
+        borderColor: colors.border,
+      }}
+    />
+  ) : (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: colors.secondary,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1.5,
+        borderColor: colors.border,
+      }}
+    >
+      <Text style={{ fontSize: size * 0.55 }}>{user.mood}</Text>
+    </View>
+  );
+}
+
+export function MessageBubble({ message, isMe, currentUser, partner }: MessageBubbleProps) {
   const colors = useColors();
   const [photoVisible, setPhotoVisible] = useState(false);
 
   const bubbleBg = isMe ? colors.myBubble : colors.theirBubble;
   const bubbleTextColor = isMe ? colors.myBubbleText : colors.theirBubbleText;
+  const sender = isMe ? currentUser : partner;
 
   if (message.type === "poke") {
     return (
       <View style={styles.pokeContainer}>
         <View
-          style={[styles.pokeBubble, { backgroundColor: colors.secondary, borderColor: colors.primary }]}
+          style={[
+            styles.pokeBubble,
+            {
+              backgroundColor: colors.secondary,
+              borderColor: colors.primary,
+            },
+          ]}
         >
           <Text style={[styles.pokeText, { color: colors.primary }]}>
             👉 {isMe ? "Bocnuo/la si ga/je!" : "Bocnuo/la te!"}
@@ -45,73 +98,121 @@ export function MessageBubble({ message, isMe }: MessageBubbleProps) {
   }
 
   return (
-    <View style={[styles.wrapper, isMe ? styles.wrapperMe : styles.wrapperThem]}>
-      {message.type === "media" && message.mediaBase64 ? (
-        <TouchableOpacity onPress={() => setPhotoVisible(true)}>
-          <View
-            style={[
-              styles.imageBubble,
-              {
-                borderColor: isMe ? colors.myBubble : colors.border,
-                shadowColor: colors.primary,
-              },
-            ]}
-          >
-            <Image
-              source={{ uri: `data:image/jpeg;base64,${message.mediaBase64}` }}
-              style={styles.messageImage}
-              resizeMode="cover"
-            />
-          </View>
-          <Text style={[styles.timestamp, { color: colors.mutedForeground, textAlign: isMe ? "right" : "left" }]}>
-            {formatTime(message.timestamp)}
-          </Text>
-          <PhotoViewer
-            visible={photoVisible}
-            uri={`data:image/jpeg;base64,${message.mediaBase64}`}
-            onClose={() => setPhotoVisible(false)}
-          />
-        </TouchableOpacity>
-      ) : message.type === "gif" && message.gifUrl ? (
-        <TouchableOpacity onPress={() => setPhotoVisible(true)}>
-          <View style={[styles.imageBubble, { borderColor: isMe ? colors.myBubble : colors.border }]}>
-            <Image
-              source={{ uri: message.gifUrl }}
-              style={styles.messageImage}
-              resizeMode="cover"
-            />
-            <View style={styles.gifBadge}>
-              <Text style={styles.gifBadgeText}>GIF</Text>
+    <View
+      style={[
+        styles.row,
+        isMe ? styles.rowMe : styles.rowThem,
+      ]}
+    >
+      {!isMe && (
+        <View style={styles.avatarWrap}>
+          <Avatar user={sender} size={30} />
+        </View>
+      )}
+
+      <View style={[styles.bubbleWrap, isMe ? styles.bubbleWrapMe : styles.bubbleWrapThem]}>
+        {message.type === "media" && message.mediaBase64 ? (
+          <TouchableOpacity onPress={() => setPhotoVisible(true)}>
+            <View
+              style={[
+                styles.imageBubble,
+                {
+                  borderColor: isMe ? colors.myBubble : colors.border,
+                  shadowColor: colors.primary,
+                },
+              ]}
+            >
+              <Image
+                source={{ uri: `data:image/jpeg;base64,${message.mediaBase64}` }}
+                style={styles.messageImage}
+                resizeMode="cover"
+              />
             </View>
-          </View>
-          <Text style={[styles.timestamp, { color: colors.mutedForeground, textAlign: isMe ? "right" : "left" }]}>
-            {formatTime(message.timestamp)}
-          </Text>
-          <PhotoViewer
-            visible={photoVisible}
-            uri={message.gifUrl}
-            onClose={() => setPhotoVisible(false)}
-          />
-        </TouchableOpacity>
-      ) : (
-        <View>
-          <View
-            style={[
-              styles.bubble,
-              {
-                backgroundColor: bubbleBg,
-                borderColor: isMe ? "transparent" : colors.border,
-                shadowColor: isMe ? colors.primary : "#000",
-              },
-            ]}
-          >
-            <Text style={[styles.messageText, { color: bubbleTextColor }]}>
-              {message.text}
+            <Text
+              style={[
+                styles.timestamp,
+                {
+                  color: colors.mutedForeground,
+                  textAlign: isMe ? "right" : "left",
+                },
+              ]}
+            >
+              {formatTime(message.timestamp)}
+            </Text>
+            <PhotoViewer
+              visible={photoVisible}
+              uri={`data:image/jpeg;base64,${message.mediaBase64}`}
+              onClose={() => setPhotoVisible(false)}
+            />
+          </TouchableOpacity>
+        ) : message.type === "gif" && message.gifUrl ? (
+          <TouchableOpacity onPress={() => setPhotoVisible(true)}>
+            <View
+              style={[
+                styles.imageBubble,
+                { borderColor: isMe ? colors.myBubble : colors.border },
+              ]}
+            >
+              <Image
+                source={{ uri: message.gifUrl }}
+                style={styles.messageImage}
+                resizeMode="cover"
+              />
+              <View style={styles.gifBadge}>
+                <Text style={styles.gifBadgeText}>GIF</Text>
+              </View>
+            </View>
+            <Text
+              style={[
+                styles.timestamp,
+                {
+                  color: colors.mutedForeground,
+                  textAlign: isMe ? "right" : "left",
+                },
+              ]}
+            >
+              {formatTime(message.timestamp)}
+            </Text>
+            <PhotoViewer
+              visible={photoVisible}
+              uri={message.gifUrl}
+              onClose={() => setPhotoVisible(false)}
+            />
+          </TouchableOpacity>
+        ) : (
+          <View>
+            <View
+              style={[
+                styles.bubble,
+                {
+                  backgroundColor: bubbleBg,
+                  borderColor: isMe ? "transparent" : colors.border,
+                  shadowColor: isMe ? colors.primary : "#000",
+                },
+              ]}
+            >
+              <Text style={[styles.messageText, { color: bubbleTextColor }]}>
+                {message.text}
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.timestamp,
+                {
+                  color: colors.mutedForeground,
+                  textAlign: isMe ? "right" : "left",
+                },
+              ]}
+            >
+              {formatTime(message.timestamp)}
             </Text>
           </View>
-          <Text style={[styles.timestamp, { color: colors.mutedForeground, textAlign: isMe ? "right" : "left" }]}>
-            {formatTime(message.timestamp)}
-          </Text>
+        )}
+      </View>
+
+      {isMe && (
+        <View style={styles.avatarWrap}>
+          <Avatar user={sender} size={30} />
         </View>
       )}
     </View>
@@ -119,35 +220,44 @@ export function MessageBubble({ message, isMe }: MessageBubbleProps) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    marginVertical: 3,
-    maxWidth: "78%",
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    marginVertical: 2,
+    paddingHorizontal: 8,
   },
-  wrapperMe: {
-    alignSelf: "flex-end",
-    marginRight: 12,
+  rowMe: {
+    justifyContent: "flex-end",
   },
-  wrapperThem: {
-    alignSelf: "flex-start",
-    marginLeft: 12,
+  rowThem: {
+    justifyContent: "flex-start",
   },
+  avatarWrap: {
+    marginHorizontal: 6,
+    marginBottom: 18,
+  },
+  bubbleWrap: {
+    maxWidth: "72%",
+  },
+  bubbleWrapMe: {},
+  bubbleWrapThem: {},
   bubble: {
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 2,
   },
   messageText: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: "Inter_400Regular",
-    lineHeight: 22,
+    lineHeight: 21,
   },
   timestamp: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: "Inter_400Regular",
     marginTop: 3,
     marginHorizontal: 4,
@@ -162,15 +272,15 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   messageImage: {
-    width: 220,
-    height: 200,
+    width: 210,
+    height: 190,
     borderRadius: 14,
   },
   gifBadge: {
     position: "absolute",
     top: 8,
     left: 8,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.65)",
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,

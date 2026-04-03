@@ -12,14 +12,20 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 
 export default function NotesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { isFullscreen, palette } = useTheme();
   const { sharedNote, updateSharedNote, currentUser } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(sharedNote.content);
+
+  const topPad = isFullscreen
+    ? 10
+    : insets.top + (Platform.OS === "web" ? 67 : 0);
 
   const handleSave = async () => {
     await updateSharedNote(draft);
@@ -32,53 +38,41 @@ export default function NotesScreen() {
     setIsEditing(false);
   };
 
-  const formatDate = (ts: number) => {
-    return new Date(ts).toLocaleString("bs-BA", {
+  const formatDate = (ts: number) =>
+    new Date(ts).toLocaleString("bs-BA", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
       <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: colors.primary,
-            paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0),
-          },
-        ]}
+        style={[styles.header, { backgroundColor: palette.headerBg, paddingTop: topPad }]}
       >
-        <Text style={styles.headerTitle}>📒 Naše Bilješke</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+          Naše Bilješke
+        </Text>
         <TouchableOpacity
           onPress={() => {
-            if (isEditing) {
-              handleSave();
-            } else {
+            if (isEditing) handleSave();
+            else {
               setDraft(sharedNote.content);
               setIsEditing(true);
             }
           }}
-          style={[styles.editBtn, { backgroundColor: "rgba(255,255,255,0.25)" }]}
+          style={[styles.editBtn, { backgroundColor: colors.primary + "30" }]}
         >
-          <Feather
-            name={isEditing ? "check" : "edit-2"}
-            size={18}
-            color="#fff"
-          />
+          <Feather name={isEditing ? "check" : "edit-2"} size={18} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
-      {/* Meta info */}
       <View style={[styles.metaBar, { backgroundColor: colors.muted, borderBottomColor: colors.border }]}>
-        <Feather name="clock" size={13} color={colors.mutedForeground} />
+        <Feather name="clock" size={12} color={colors.mutedForeground} />
         <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
-          Zadnja izmjena: {sharedNote.lastEditedBy} · {formatDate(sharedNote.lastEditedAt)}
+          {sharedNote.lastEditedBy} · {formatDate(sharedNote.lastEditedAt)}
         </Text>
       </View>
 
@@ -86,9 +80,7 @@ export default function NotesScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={[
           styles.noteContainer,
-          {
-            paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 20,
-          },
+          { paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 20 },
         ]}
         keyboardShouldPersistTaps="handled"
       >
@@ -114,26 +106,30 @@ export default function NotesScreen() {
             <View style={styles.actionRow}>
               <TouchableOpacity
                 onPress={handleCancel}
-                style={[styles.actionBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
+                style={[
+                  styles.actionBtn,
+                  { backgroundColor: colors.muted, borderColor: colors.border },
+                ]}
               >
-                <Text style={[styles.actionBtnText, { color: colors.foreground }]}>Odustani</Text>
+                <Text style={[styles.actionBtnText, { color: colors.foreground }]}>
+                  Odustani
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSave}
                 style={[styles.actionBtn, { backgroundColor: colors.primary }]}
               >
-                <Feather name="check" size={16} color="#fff" />
-                <Text style={[styles.actionBtnText, { color: "#fff" }]}>Sačuvaj</Text>
+                <Feather name="check" size={16} color={colors.primaryForeground} />
+                <Text style={[styles.actionBtnText, { color: colors.primaryForeground }]}>
+                  Sačuvaj
+                </Text>
               </TouchableOpacity>
             </View>
           </>
         ) : (
           <TouchableOpacity
-            onPress={() => {
-              setDraft(sharedNote.content);
-              setIsEditing(true);
-            }}
-            activeOpacity={0.8}
+            onPress={() => { setDraft(sharedNote.content); setIsEditing(true); }}
+            activeOpacity={0.85}
           >
             <View
               style={[
@@ -144,8 +140,8 @@ export default function NotesScreen() {
               <Text style={[styles.noteText, { color: colors.foreground }]}>
                 {sharedNote.content || "Nema sadržaja. Dodirnite za uređivanje."}
               </Text>
-              <View style={styles.tapHint}>
-                <Feather name="edit-2" size={13} color={colors.mutedForeground} />
+              <View style={[styles.tapHint, { borderTopColor: colors.border }]}>
+                <Feather name="edit-2" size={12} color={colors.mutedForeground} />
                 <Text style={[styles.tapHintText, { color: colors.mutedForeground }]}>
                   Dodirnite za uređivanje
                 </Text>
@@ -159,9 +155,7 @@ export default function NotesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -170,12 +164,11 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.3,
     shadowRadius: 6,
-    elevation: 4,
+    elevation: 6,
   },
   headerTitle: {
-    color: "#fff",
     fontSize: 20,
     fontFamily: "Inter_700Bold",
   },
@@ -198,19 +191,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Inter_400Regular",
   },
-  noteContainer: {
-    padding: 16,
-  },
+  noteContainer: { padding: 14 },
   noteDisplay: {
     borderRadius: 16,
     padding: 18,
     borderWidth: 1,
     minHeight: 300,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 1,
   },
   noteText: {
     fontSize: 16,
@@ -233,7 +219,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.06)",
   },
   tapHintText: {
     fontSize: 12,

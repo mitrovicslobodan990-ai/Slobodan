@@ -37,13 +37,11 @@ interface AppContextValue {
   partner: UserProfile;
   messages: Message[];
   sharedNote: SharedNote;
-  isFullscreen: boolean;
   updateMood: (mood: string) => void;
   updateAvatar: (base64: string) => void;
   sendMessage: (msg: Omit<Message, "id" | "timestamp" | "senderId">) => void;
   sendPoke: () => void;
   updateSharedNote: (content: string) => void;
-  toggleFullscreen: () => void;
   clearMessages: () => void;
   giphyApiKey: string;
   firebaseConfig: Record<string, string>;
@@ -99,7 +97,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     lastEditedBy: "me",
     lastEditedAt: Date.now(),
   });
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [giphyApiKey, setGiphyApiKey] = useState("");
   const [firebaseConfig, setFirebaseConfig] = useState<Record<string, string>>(
     {}
@@ -198,10 +195,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [sharedNote, currentUser.name]
   );
 
-  const toggleFullscreen = useCallback(() => {
-    setIsFullscreen((prev) => !prev);
-  }, []);
-
   const clearMessages = useCallback(async () => {
     setMessages([]);
     await AsyncStorage.setItem("messages", JSON.stringify([]));
@@ -227,13 +220,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         partner,
         messages,
         sharedNote,
-        isFullscreen,
         updateMood,
         updateAvatar,
         sendMessage,
         sendPoke,
         updateSharedNote,
-        toggleFullscreen,
         clearMessages,
         giphyApiKey,
         firebaseConfig,

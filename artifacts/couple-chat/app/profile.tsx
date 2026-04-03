@@ -5,6 +5,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -15,12 +16,15 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { MoodPicker } from "@/components/MoodPicker";
+import { THEME_META, ThemeName } from "@/constants/themes";
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { activeTheme, setTheme, isFullscreen, toggleFullscreen, palette } = useTheme();
   const {
     currentUser,
     partner,
@@ -45,6 +49,10 @@ export default function ProfileScreen() {
     storageBucket: firebaseConfig.storageBucket || "",
   });
 
+  const topPad = isFullscreen
+    ? 10
+    : insets.top + (Platform.OS === "web" ? 67 : 0);
+
   const handlePickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
@@ -65,21 +73,17 @@ export default function ProfileScreen() {
   };
 
   const handleClearMessages = () => {
-    Alert.alert(
-      "Obriši poruke",
-      "Jesi li siguran/na da želiš obrisati sve poruke?",
-      [
-        { text: "Odustani", style: "cancel" },
-        {
-          text: "Obriši",
-          style: "destructive",
-          onPress: async () => {
-            await clearMessages();
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          },
+    Alert.alert("Obriši poruke", "Jesi li siguran/na da želiš obrisati sve poruke?", [
+      { text: "Odustani", style: "cancel" },
+      {
+        text: "Obriši",
+        style: "destructive",
+        onPress: async () => {
+          await clearMessages();
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleSaveFirebase = async () => {
@@ -95,6 +99,11 @@ export default function ProfileScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
+  const handleSelectTheme = async (name: ThemeName) => {
+    await setTheme(name);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
   const avatarUri = currentUser.avatarBase64
     ? `data:image/jpeg;base64,${currentUser.avatarBase64}`
     : null;
@@ -104,13 +113,12 @@ export default function ProfileScreen() {
       <View
         style={[
           styles.header,
-          {
-            backgroundColor: colors.primary,
-            paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0),
-          },
+          { backgroundColor: palette.headerBg, paddingTop: topPad },
         ]}
       >
-        <Text style={styles.headerTitle}>⚙️ Profil & Postavke</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+          Profil & Postavke
+        </Text>
       </View>
 
       <ScrollView
@@ -125,18 +133,19 @@ export default function ProfileScreen() {
           <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
             MOJ PROFIL
           </Text>
-
           <View style={styles.profileRow}>
             <TouchableOpacity onPress={handlePickAvatar} style={styles.avatarContainer}>
               {avatarUri ? (
                 <Image source={{ uri: avatarUri }} style={styles.avatar} />
               ) : (
-                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.secondary }]}>
+                <View
+                  style={[styles.avatarPlaceholder, { backgroundColor: colors.secondary }]}
+                >
                   <Text style={styles.avatarEmoji}>{currentUser.mood}</Text>
                 </View>
               )}
               <View style={[styles.cameraOverlay, { backgroundColor: colors.primary }]}>
-                <Feather name="camera" size={14} color="#fff" />
+                <Feather name="camera" size={13} color={colors.primaryForeground} />
               </View>
             </TouchableOpacity>
 
@@ -145,13 +154,13 @@ export default function ProfileScreen() {
                 {currentUser.name}
               </Text>
               <Text style={[styles.profileSub, { color: colors.mutedForeground }]}>
-                To si ti
+                Moj profil
               </Text>
               <TouchableOpacity
                 onPress={() => setMoodPickerVisible(true)}
                 style={[styles.moodChip, { backgroundColor: colors.secondary }]}
               >
-                <Text style={styles.moodChipEmoji}>{currentUser.mood}</Text>
+                <Text style={{ fontSize: 18 }}>{currentUser.mood}</Text>
                 <Text style={[styles.moodChipText, { color: colors.primary }]}>
                   Promijeni raspoloženje
                 </Text>
@@ -174,24 +183,104 @@ export default function ProfileScreen() {
               <Text style={[styles.profileName, { color: colors.foreground }]}>
                 {partner.name}
               </Text>
-              <Text style={[styles.profileSub, { color: colors.mutedForeground }]}>
-                Trenutno raspoloženje:
-              </Text>
               <View style={[styles.moodChip, { backgroundColor: colors.muted }]}>
                 <Text style={{ fontSize: 22 }}>{partner.mood}</Text>
+                <Text style={[styles.moodChipText, { color: colors.mutedForeground }]}>
+                  Trenutno raspoloženje
+                </Text>
               </View>
             </View>
+          </View>
+        </View>
+
+        {/* === THEMES === */}
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
+            TEMA APLIKACIJE
+          </Text>
+          <View style={styles.themesGrid}>
+            {THEME_META.map((meta) => {
+              const isActive = activeTheme === meta.name;
+              return (
+                <TouchableOpacity
+                  key={meta.name}
+                  onPress={() => handleSelectTheme(meta.name)}
+                  style={[
+                    styles.themeCard,
+                    {
+                      borderColor: isActive ? colors.primary : colors.border,
+                      backgroundColor: meta.preview[0],
+                      borderWidth: isActive ? 2.5 : 1.5,
+                    },
+                  ]}
+                >
+                  {/* Color dots preview */}
+                  <View style={styles.themeDotsRow}>
+                    {meta.preview.map((col, i) => (
+                      <View
+                        key={i}
+                        style={[styles.themeDot, { backgroundColor: col }]}
+                      />
+                    ))}
+                  </View>
+                  <Text style={styles.themeEmoji}>{meta.emoji}</Text>
+                  <Text style={[styles.themeLabel, { color: "#fff" }]} numberOfLines={2}>
+                    {meta.label}
+                  </Text>
+                  {isActive && (
+                    <View
+                      style={[styles.themeCheck, { backgroundColor: colors.primary }]}
+                    >
+                      <Feather name="check" size={12} color={colors.primaryForeground} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* === FULLSCREEN === */}
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
+            PRIKAZ
+          </Text>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLeft}>
+              <View
+                style={[styles.settingIcon, { backgroundColor: colors.accent + "22" }]}
+              >
+                <Feather name="maximize" size={18} color={colors.accent} />
+              </View>
+              <View>
+                <Text style={[styles.settingLabel, { color: colors.foreground }]}>
+                  Fullscreen mode
+                </Text>
+                <Text style={[styles.settingDesc, { color: colors.mutedForeground }]}>
+                  Sakrij statusnu traku (sat, mreža)
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={isFullscreen}
+              onValueChange={() => {
+                toggleFullscreen();
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              }}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={isFullscreen ? colors.primaryForeground : colors.mutedForeground}
+            />
           </View>
         </View>
 
         {/* Firebase Config */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity
-            style={styles.settingRow}
+            style={styles.settingRowBtn}
             onPress={() => setShowFirebaseForm(!showFirebaseForm)}
           >
-            <View style={styles.settingLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: "#FF8C00" + "22" }]}>
+            <View style={styles.switchLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: "#FF8C0022" }]}>
                 <Feather name="database" size={18} color="#FF8C00" />
               </View>
               <View>
@@ -199,7 +288,9 @@ export default function ProfileScreen() {
                   Firebase konfiguracija
                 </Text>
                 <Text style={[styles.settingDesc, { color: colors.mutedForeground }]}>
-                  {firebaseConfig.projectId ? `Projekt: ${firebaseConfig.projectId}` : "Nije postavljeno"}
+                  {firebaseConfig.projectId
+                    ? `Projekt: ${firebaseConfig.projectId}`
+                    : "Nije postavljeno"}
                 </Text>
               </View>
             </View>
@@ -214,14 +305,22 @@ export default function ProfileScreen() {
             <View style={[styles.formContainer, { borderTopColor: colors.border }]}>
               {Object.keys(fbDraft).map((key) => (
                 <View key={key} style={styles.fieldGroup}>
-                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{key}</Text>
+                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                    {key}
+                  </Text>
                   <TextInput
                     style={[
                       styles.fieldInput,
-                      { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border },
+                      {
+                        backgroundColor: colors.muted,
+                        color: colors.foreground,
+                        borderColor: colors.border,
+                      },
                     ]}
                     value={fbDraft[key]}
-                    onChangeText={(val) => setFbDraft((prev) => ({ ...prev, [key]: val }))}
+                    onChangeText={(val) =>
+                      setFbDraft((prev) => ({ ...prev, [key]: val }))
+                    }
                     placeholder={`Unesi ${key}`}
                     placeholderTextColor={colors.mutedForeground}
                     autoCapitalize="none"
@@ -233,7 +332,9 @@ export default function ProfileScreen() {
                 onPress={handleSaveFirebase}
                 style={[styles.saveBtn, { backgroundColor: colors.primary }]}
               >
-                <Text style={styles.saveBtnText}>Sačuvaj Firebase</Text>
+                <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>
+                  Sačuvaj Firebase
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -242,12 +343,12 @@ export default function ProfileScreen() {
         {/* Giphy Key */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity
-            style={styles.settingRow}
+            style={styles.settingRowBtn}
             onPress={() => setShowGiphyForm(!showGiphyForm)}
           >
-            <View style={styles.settingLeft}>
+            <View style={styles.switchLeft}>
               <View style={[styles.settingIcon, { backgroundColor: colors.primary + "22" }]}>
-                <Text style={{ fontSize: 16 }}>🎭</Text>
+                <Text style={{ fontSize: 17 }}>🎭</Text>
               </View>
               <View>
                 <Text style={[styles.settingLabel, { color: colors.foreground }]}>
@@ -270,7 +371,11 @@ export default function ProfileScreen() {
               <TextInput
                 style={[
                   styles.fieldInput,
-                  { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border },
+                  {
+                    backgroundColor: colors.muted,
+                    color: colors.foreground,
+                    borderColor: colors.border,
+                  },
                 ]}
                 value={giphyDraft}
                 onChangeText={setGiphyDraft}
@@ -283,13 +388,15 @@ export default function ProfileScreen() {
                 onPress={handleSaveGiphy}
                 style={[styles.saveBtn, { backgroundColor: colors.primary }]}
               >
-                <Text style={styles.saveBtnText}>Sačuvaj Giphy ključ</Text>
+                <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>
+                  Sačuvaj Giphy ključ
+                </Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
 
-        {/* Danger Zone */}
+        {/* Danger */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
             OPASNA ZONA
@@ -317,25 +424,22 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     paddingHorizontal: 16,
     paddingBottom: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.3,
     shadowRadius: 6,
-    elevation: 4,
+    elevation: 6,
   },
   headerTitle: {
-    color: "#fff",
     fontSize: 20,
     fontFamily: "Inter_700Bold",
   },
   content: {
-    padding: 16,
+    padding: 14,
     gap: 12,
   },
   card: {
@@ -344,30 +448,24 @@ const styles = StyleSheet.create({
     padding: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 1,
+    elevation: 2,
     marginBottom: 0,
   },
   sectionTitle: {
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",
-    letterSpacing: 0.8,
-    marginBottom: 12,
+    letterSpacing: 1,
+    marginBottom: 14,
   },
   profileRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 16,
+    gap: 14,
   },
-  avatarContainer: {
-    position: "relative",
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-  },
+  avatarContainer: { position: "relative" },
+  avatar: { width: 72, height: 72, borderRadius: 36 },
   avatarPlaceholder: {
     width: 72,
     height: 72,
@@ -375,9 +473,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarEmoji: {
-    fontSize: 36,
-  },
+  avatarEmoji: { fontSize: 34 },
   cameraOverlay: {
     position: "absolute",
     bottom: 0,
@@ -390,18 +486,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
-  profileInfo: {
-    flex: 1,
-    gap: 6,
-  },
-  profileName: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-  },
-  profileSub: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-  },
+  profileInfo: { flex: 1, gap: 6 },
+  profileName: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  profileSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
   moodChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -411,19 +498,61 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 6,
   },
-  moodChipEmoji: {
-    fontSize: 18,
+  moodChipText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+
+  /* Themes */
+  themesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
   },
-  moodChipText: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
+  themeCard: {
+    width: "30%",
+    borderRadius: 14,
+    padding: 10,
+    alignItems: "center",
+    position: "relative",
+    minHeight: 90,
+    justifyContent: "center",
+    gap: 4,
   },
-  settingRow: {
+  themeDotsRow: {
+    flexDirection: "row",
+    gap: 3,
+    marginBottom: 2,
+  },
+  themeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  themeEmoji: { fontSize: 20 },
+  themeLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
+    textAlign: "center",
+    lineHeight: 13,
+  },
+  themeCheck: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  /* Switch row */
+  switchRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  settingLeft: {
+  switchLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
@@ -436,28 +565,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  settingLabel: {
-    fontSize: 15,
-    fontFamily: "Inter_500Medium",
+  settingLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
+  settingDesc: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
+  settingRowBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  settingDesc: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    marginTop: 1,
-  },
+
+  /* Firebase/Giphy forms */
   formContainer: {
     borderTopWidth: 1,
     marginTop: 12,
     paddingTop: 12,
     gap: 10,
   },
-  fieldGroup: {
-    gap: 4,
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-  },
+  fieldGroup: { gap: 4 },
+  fieldLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
   fieldInput: {
     borderRadius: 10,
     paddingHorizontal: 12,
@@ -472,11 +596,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 4,
   },
-  saveBtnText: {
-    color: "#fff",
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-  },
+  saveBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+
+  /* Danger */
   dangerBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -486,8 +608,5 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     paddingVertical: 14,
   },
-  dangerBtnText: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-  },
+  dangerBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });
