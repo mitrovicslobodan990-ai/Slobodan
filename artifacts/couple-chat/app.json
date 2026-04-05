@@ -20,7 +20,7 @@
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.mesec990.couplechat",
+      "package": "com.couplechat.app",
       "googleServicesFile": "./google-services.json"
     },
     "web": {
