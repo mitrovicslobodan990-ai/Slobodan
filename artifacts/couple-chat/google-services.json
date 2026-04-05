@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "391581056312",
+    "firebase_url": "https://couple-chat-5a239-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "couple-chat-5a239",
+    "storage_bucket": "couple-chat-5a239.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:391581056312:android:bcfbae03d2a9c0c28ad5cd",
+        "android_client_info": {
+          "package_name": "com.couplechat.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6FspCzKdBDXcYqA1qikjYbY4RWvIQk1Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

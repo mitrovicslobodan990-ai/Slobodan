@@ -216,8 +216,8 @@ export default function ChatScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior="padding"
-        keyboardVerticalOffset={0}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 120 : 80}
       >
         <FlatList
           ref={flatListRef}
@@ -244,16 +244,19 @@ export default function ChatScreen() {
             />
           )}
         />
+      </KeyboardAvoidingView>
 
-        {/* Input Bar */}
+      {/* Input Bar */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 120 : 80}
+      >
         <View
           style={[
             styles.inputBar,
             {
               backgroundColor: colors.card,
               borderTopColor: colors.border,
-              paddingBottom:
-                Platform.OS === "web" ? 34 : insets.bottom + 4,
             },
           ]}
         >
@@ -283,6 +286,7 @@ export default function ChatScreen() {
             value={text}
             onChangeText={setText}
             multiline
+            textAlignVertical="top"
             maxLength={1000}
           />
           <TouchableOpacity
@@ -322,7 +326,10 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { 
+    flex: 1,
+    paddingBottom: 80,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -399,12 +406,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   inputBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     paddingHorizontal: 10,
-    paddingTop: 8,
+    paddingVertical: 10,
     borderTopWidth: 1,
     gap: 8,
+    marginBottom: 0,
   },
   iconBtn: {
     width: 40,
@@ -412,7 +424,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    marginBottom: 0,
   },
   gifBtnText: {
     fontSize: 11,
@@ -420,6 +432,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    minHeight: 44,
     borderRadius: 22,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -434,6 +447,6 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    marginBottom: 0,
   },
 });

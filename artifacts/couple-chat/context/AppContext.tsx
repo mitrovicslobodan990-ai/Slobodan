@@ -47,6 +47,10 @@ interface AppContextValue {
   firebaseConfig: Record<string, string>;
   updateFirebaseConfig: (config: Record<string, string>) => void;
   updateGiphyKey: (key: string) => void;
+  setUserRole: (role: 'slobodan' | 'aleksandra') => void;
+  expoPushToken: string | null;
+  registerPushToken: (token: string) => Promise<void>;
+  notifyPartner: (title: string, body: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -77,15 +81,15 @@ const DEMO_MESSAGES: Message[] = [
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<UserProfile>({
-    id: "me",
-    name: "Ti",
+    id: "slobodan",
+    name: "Slobodan",
     mood: "😊",
     avatarBase64: undefined,
   });
 
   const [partner, setPartner] = useState<UserProfile>({
-    id: "partner",
-    name: "Ljubav",
+    id: "aleksandra",
+    name: "Aleksandra",
     mood: "❤️",
     avatarBase64: undefined,
   });
@@ -101,10 +105,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [firebaseConfig, setFirebaseConfig] = useState<Record<string, string>>(
     {}
   );
+  const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
 
   useEffect(() => {
     loadPersistedData();
   }, []);
+
+  useEffect(() => {
+    if (expoPushToken && currentUser.id) {
+      registerPushToken(expoPushToken);
+    }
+  }, [expoPushToken, currentUser.id, registerPushToken]);
 
   const loadPersistedData = async () => {
     try {
@@ -115,6 +126,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         storedNote,
         storedGiphy,
         storedFirebase,
+        storedPushToken,
       ] = await Promise.all([
         AsyncStorage.getItem("currentUser"),
         AsyncStorage.getItem("partner"),
@@ -122,6 +134,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem("sharedNote"),
         AsyncStorage.getItem("giphyApiKey"),
         AsyncStorage.getItem("firebaseConfig"),
+        AsyncStorage.getItem("expoPushToken"),
       ]);
 
       if (storedUser) setCurrentUser(JSON.parse(storedUser));
@@ -130,6 +143,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (storedNote) setSharedNote(JSON.parse(storedNote));
       if (storedGiphy) setGiphyApiKey(storedGiphy);
       if (storedFirebase) setFirebaseConfig(JSON.parse(storedFirebase));
+      if (storedPushToken) setExpoPushToken(storedPushToken);
     } catch (e) {
       console.warn("Error loading data:", e);
     }
@@ -156,16 +170,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const sendMessage = useCallback(
     async (msg: Omit<Message, "id" | "timestamp" | "senderId">) => {
       const newMsg: Message = {
-        ...msg,
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        timestamp: Date.now(),
         senderId: "me",
+        timestamp: Date.now(),
+        ...msg,
       };
       const updated = [...messages, newMsg];
       setMessages(updated);
       await AsyncStorage.setItem("messages", JSON.stringify(updated));
+      const notificationBody =
+        msg.type === "text"
+          ? msg.text
+          : msg.type === "media"
+          ? "Poslao/la je fotografiju"
+          : msg.type === "gif"
+          ? "Poslao/la je gif"
+          : "Nova poruka";
+      notifyPartner(`Nova poruka od ${currentUser.name}`, notificationBody);
     },
-    [messages]
+    [messages, notifyPartner, currentUser.name]
   );
 
   const sendPoke = useCallback(async () => {
@@ -179,7 +202,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = [...messages, pokeMsg];
     setMessages(updated);
     await AsyncStorage.setItem("messages", JSON.stringify(updated));
-  }, [messages]);
+    notifyPartner(`Bocnuli ste ${partner.name}`, "Dobio/la si bocnu! 💌");
+  }, [messages, notifyPartner, partner.name]);
 
   const updateSharedNote = useCallback(
     async (content: string) => {
@@ -213,6 +237,64 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem("giphyApiKey", key);
   }, []);
 
+  const setUserRole = useCallback(async (role: 'slobodan' | 'aleksandra') => {
+    const isSlobodan = role === 'slobodan';
+    const newCurrentUser: UserProfile = {
+      ...currentUser,
+      id: role,
+      name: isSlobodan ? 'Slobodan' : 'Aleksandra',
+    };
+    const newPartner: UserProfile = {
+      ...partner,
+      id: isSlobodan ? 'aleksandra' : 'slobodan',
+      name: isSlobodan ? 'Aleksandra' : 'Slobodan',
+    };
+    setCurrentUser(newCurrentUser);
+    setPartner(newPartner);
+    await AsyncStorage.setItem("currentUser", JSON.stringify(newCurrentUser));
+    await AsyncStorage.setItem("partner", JSON.stringify(newPartner));
+  }, [currentUser, partner]);
+
+  const registerPushToken = useCallback(async (token: string) => {
+    try {
+      setExpoPushToken(token);
+      await AsyncStorage.setItem("expoPushToken", token);
+      // Register with our API server
+      const API_BASE_URL = "http://localhost:3000"; // Adjust as needed
+      await fetch(`${API_BASE_URL}/api/push/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          token,
+        }),
+      });
+    } catch (error) {
+      console.error("Failed to register push token:", error);
+    }
+  }, [currentUser.id]);
+
+  const notifyPartner = useCallback(async (title: string, body: string) => {
+    try {
+      const API_BASE_URL = "http://localhost:3000"; // Adjust as needed
+      await fetch(`${API_BASE_URL}/api/push/notify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          toUserId: partner.id,
+          title,
+          body,
+        }),
+      });
+    } catch (error) {
+      console.error("Failed to send push notification:", error);
+    }
+  }, [partner.id]);
+
   return (
     <AppContext.Provider
       value={{
@@ -230,6 +312,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         firebaseConfig,
         updateFirebaseConfig,
         updateGiphyKey,
+        setUserRole,
+        expoPushToken,
+        registerPushToken,
+        notifyPartner,
       }}
     >
       {children}

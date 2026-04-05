@@ -16,17 +16,18 @@
     "ios": {
       "supportsTablet": false
     },
-    "android": {},
+    "android": {
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.mesec990.couplechat",
+      "googleServicesFile": "./google-services.json"
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
-      [
-        "expo-router",
-        {
-          "origin": "https://replit.com/"
-        }
-      ],
+      "expo-router",
       "expo-font",
       "expo-web-browser",
       "expo-image-picker"
@@ -34,6 +35,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9296e262-3e29-43d8-bd9c-290d5248654f"
+      }
+    },
+    "owner": "mesec990"
   }
 }

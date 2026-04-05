@@ -10,6 +10,14 @@ interface ThemeContextValue {
   toggleFullscreen: () => void;
 }
 
+const defaultTheme: ThemeContextValue = {
+  activeTheme: "cyberNight",
+  palette: { ...THEMES.cyberNight, radius },
+  setTheme: () => {},
+  isFullscreen: false,
+  toggleFullscreen: () => {},
+};
+
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
@@ -47,6 +55,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useTheme() {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error("useTheme must be inside ThemeProvider");
+  if (!ctx) {
+    console.warn("useTheme called outside ThemeProvider. Using default theme.");
+    return defaultTheme;
+  }
   return ctx;
 }

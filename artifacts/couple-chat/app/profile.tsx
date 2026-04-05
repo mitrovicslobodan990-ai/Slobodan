@@ -35,6 +35,7 @@ export default function ProfileScreen() {
     firebaseConfig,
     updateFirebaseConfig,
     updateGiphyKey,
+    setUserRole,
   } = useApp();
 
   const [moodPickerVisible, setMoodPickerVisible] = useState(false);
@@ -128,6 +129,46 @@ export default function ProfileScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {/* User Role Selection */}
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
+            IZBOR ULOGE
+          </Text>
+          <Text style={[styles.sectionDescription, { color: colors.foreground }]}>
+            Odaberite ko ste vi da bi Firebase mogao razlikovati korisnike.
+          </Text>
+          <View style={styles.roleButtons}>
+            <TouchableOpacity
+              onPress={() => setUserRole('slobodan')}
+              style={[
+                styles.roleButton,
+                { backgroundColor: currentUser.id === 'slobodan' ? colors.primary : colors.secondary },
+              ]}
+            >
+              <Text style={[
+                styles.roleButtonText,
+                { color: currentUser.id === 'slobodan' ? colors.primaryForeground : colors.foreground },
+              ]}>
+                Ja sam Slobodan
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setUserRole('aleksandra')}
+              style={[
+                styles.roleButton,
+                { backgroundColor: currentUser.id === 'aleksandra' ? colors.primary : colors.secondary },
+              ]}
+            >
+              <Text style={[
+                styles.roleButtonText,
+                { color: currentUser.id === 'aleksandra' ? colors.primaryForeground : colors.foreground },
+              ]}>
+                Ja sam Aleksandra
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* My Profile Card */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
@@ -458,6 +499,25 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     letterSpacing: 1,
     marginBottom: 14,
+  },
+  sectionDescription: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    marginBottom: 16,
+  },
+  roleButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  roleButton: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  roleButtonText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
   },
   profileRow: {
     flexDirection: "row",

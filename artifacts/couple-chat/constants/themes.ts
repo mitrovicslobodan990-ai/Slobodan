@@ -4,7 +4,10 @@ export type ThemeName =
   | "oceanNight"
   | "forestDark"
   | "sunsetRose"
-  | "arcticBlue";
+  | "arcticBlue"
+  | "mintPearl"
+  | "lavenderMist"
+  | "peachFrost";
 
 export interface ThemePalette {
   background: string;
@@ -202,6 +205,87 @@ export const THEMES: Record<ThemeName, ThemePalette> = {
     headerBg: "#0d47a1",
     statusBarStyle: "light",
   },
+
+  mintPearl: {
+    background: "#f7fffb",
+    foreground: "#1a2a27",
+    card: "#ffffff",
+    cardForeground: "#1a2a27",
+    primary: "#3ecf8e",
+    primaryForeground: "#ffffff",
+    secondary: "#d7f7e8",
+    secondaryForeground: "#2c6f5b",
+    muted: "#edf5f0",
+    mutedForeground: "#7a8b82",
+    accent: "#75d9a2",
+    accentForeground: "#0b3f30",
+    destructive: "#e74c3c",
+    destructiveForeground: "#ffffff",
+    border: "#d6eddf",
+    input: "#eef8f1",
+    text: "#1a2a27",
+    tint: "#3ecf8e",
+    myBubble: "#3ecf8e",
+    theirBubble: "#ffffff",
+    myBubbleText: "#ffffff",
+    theirBubbleText: "#1a2a27",
+    headerBg: "#2d8f6d",
+    statusBarStyle: "dark",
+  },
+
+  lavenderMist: {
+    background: "#f9f6ff",
+    foreground: "#2c2a3a",
+    card: "#ffffff",
+    cardForeground: "#2c2a3a",
+    primary: "#9f7bff",
+    primaryForeground: "#ffffff",
+    secondary: "#f3e8ff",
+    secondaryForeground: "#5b4090",
+    muted: "#f1edf9",
+    mutedForeground: "#8d86a6",
+    accent: "#9a7cff",
+    accentForeground: "#2c2a3a",
+    destructive: "#ef5350",
+    destructiveForeground: "#ffffff",
+    border: "#e6e0f5",
+    input: "#f3effc",
+    text: "#2c2a3a",
+    tint: "#9f7bff",
+    myBubble: "#9f7bff",
+    theirBubble: "#ffffff",
+    myBubbleText: "#ffffff",
+    theirBubbleText: "#2c2a3a",
+    headerBg: "#7a58f0",
+    statusBarStyle: "dark",
+  },
+
+  peachFrost: {
+    background: "#fff8f5",
+    foreground: "#3d2d25",
+    card: "#ffffff",
+    cardForeground: "#3d2d25",
+    primary: "#ff8a65",
+    primaryForeground: "#ffffff",
+    secondary: "#ffe9df",
+    secondaryForeground: "#8f4b37",
+    muted: "#f8eee9",
+    mutedForeground: "#b08d84",
+    accent: "#ffab91",
+    accentForeground: "#3d2d25",
+    destructive: "#d84315",
+    destructiveForeground: "#ffffff",
+    border: "#f5ded7",
+    input: "#fff0eb",
+    text: "#3d2d25",
+    tint: "#ff8a65",
+    myBubble: "#ff8a65",
+    theirBubble: "#ffffff",
+    myBubbleText: "#ffffff",
+    theirBubbleText: "#3d2d25",
+    headerBg: "#ff7043",
+    statusBarStyle: "dark",
+  },
 };
 
 export const THEME_META: ThemeMeta[] = [
@@ -240,6 +324,24 @@ export const THEME_META: ThemeMeta[] = [
     label: "Arktička plava",
     emoji: "❄️",
     preview: ["#f0f4f8", "#1565c0", "#42a5f5"],
+  },
+  {
+    name: "mintPearl",
+    label: "Mint & bijela",
+    emoji: "🌿",
+    preview: ["#f7fffb", "#3ecf8e", "#d7f7e8"],
+  },
+  {
+    name: "lavenderMist",
+    label: "Lavanda magla",
+    emoji: "🌸",
+    preview: ["#f9f6ff", "#9f7bff", "#f3e8ff"],
+  },
+  {
+    name: "peachFrost",
+    label: "Breskva & led",
+    emoji: "🍑",
+    preview: ["#fff8f5", "#ff8a65", "#ffe9df"],
   },
 ];
 
