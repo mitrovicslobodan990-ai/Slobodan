@@ -5,13 +5,22 @@ import admin from "firebase-admin";
 let initialized = false;
 
 async function loadServiceAccount() {
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (typeof serviceAccountJson === "string" && serviceAccountJson.trim()) {
+    try {
+      return JSON.parse(serviceAccountJson) as admin.ServiceAccount;
+    } catch (error) {
+      throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON is invalid JSON.");
+    }
+  }
+
   const serviceAccountPath =
     process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
     process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
   if (!serviceAccountPath) {
     throw new Error(
-      "FIREBASE_SERVICE_ACCOUNT_PATH or GOOGLE_APPLICATION_CREDENTIALS must be set to the service account JSON file path.",
+      "FIREBASE_SERVICE_ACCOUNT_PATH, GOOGLE_APPLICATION_CREDENTIALS, or FIREBASE_SERVICE_ACCOUNT_JSON must be set.",
     );
   }
 
