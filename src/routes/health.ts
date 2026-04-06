@@ -7,5 +7,3 @@ router.get("/healthz", (_req, res) => {
 });
 
 export default router;
-
-export default router;
