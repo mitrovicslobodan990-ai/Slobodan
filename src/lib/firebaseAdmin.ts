@@ -35,9 +35,13 @@ async function loadServiceAccount() {
 export async function getFirebaseAdmin() {
   if (!initialized) {
     const serviceAccount = await loadServiceAccount();
+    
+    // Inicijalizacija sa tvojim specifičnim URL-om za Evropu
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
+      databaseURL: "https://couple-chat-5a239-default-rtdb.europe-west1.firebasedatabase.app/"
     });
+    
     initialized = true;
   }
 
