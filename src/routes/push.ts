@@ -44,10 +44,8 @@ router.post("/notify", async (req, res) => {
 
   try {
     console.log("🚀 Sending push notification...");
-    console.log("Token:", pushToken);
-    console.log("Title:", title);
-    console.log("Body:", body);
 
+    // 1. Deo za EXPO notifikacije
     if (
       pushToken.startsWith("ExponentPushToken") ||
       pushToken.startsWith("ExpoPushToken")
@@ -70,10 +68,21 @@ router.post("/notify", async (req, res) => {
       ];
 
       const ticketChunk = await expo.sendPushNotificationsAsync(messages);
-      console.log("✅ Expo notification result:", ticketChunk);
+      
+      // DODATAK: Upis u bazu za Expo korisnike
+      const admin = await getFirebaseAdmin();
+      await admin.database().ref('messages').push({
+        title,
+        body,
+        senderId: data?.senderId || 'unknown',
+        timestamp: Date.now(),
+      });
+
+      console.log("✅ Expo notification result & DB saved");
       return res.json({ ok: true, ticketChunk });
     }
 
+    // 2. Deo za FIREBASE Admin notifikacije
     const admin = await getFirebaseAdmin();
     const message = {
       token: pushToken,
@@ -94,6 +103,22 @@ router.post("/notify", async (req, res) => {
 
     const messageId = await admin.messaging().send(message);
     console.log("✅ Firebase Admin notification sent, messageId:", messageId);
+
+    // --- KLJUČNI DODATAK ZA TVOJU BAZU ---
+    try {
+      const db = admin.database();
+      await db.ref('messages').push({
+        title: title,
+        body: body,
+        senderId: data?.senderId || 'unknown',
+        timestamp: Date.now()
+      });
+      console.log("✅ Poruka je uspešno upisana u Realtime Database!");
+    } catch (dbError) {
+      console.error("❌ Greška pri upisu u bazu:", dbError);
+    }
+    // --- KRAJ DODATKA ---
+
     return res.json({ ok: true, messageId });
   } catch (error) {
     console.error("❌ Error sending notification:", error);

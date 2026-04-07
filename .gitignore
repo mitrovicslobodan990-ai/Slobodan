@@ -8,7 +8,6 @@ pnpm-lock.yaml
 .env
 .env.local
 .env.*.local
-*.json
 
 # Firebase service account key (CRITICAL - NEVER COMMIT)
 *-firebase-adminsdk-*.json
