@@ -44,7 +44,9 @@ export default function ProfileScreen() {
   const [giphyDraft, setGiphyDraft] = useState(giphyApiKey);
   const [fbDraft, setFbDraft] = useState<Record<string, string>>({
     apiKey: firebaseConfig.apiKey || "",
+    authDomain: firebaseConfig.authDomain || "",
     projectId: firebaseConfig.projectId || "",
+    databaseURL: firebaseConfig.databaseURL || "",
     appId: firebaseConfig.appId || "",
     messagingSenderId: firebaseConfig.messagingSenderId || "",
     storageBucket: firebaseConfig.storageBucket || "",
@@ -344,6 +346,16 @@ export default function ProfileScreen() {
 
           {showFirebaseForm && (
             <View style={[styles.formContainer, { borderTopColor: colors.border }]}>
+              <View style={[styles.infoBox, { backgroundColor: colors.secondary + "30" }]}>
+                <Feather name="info" size={16} color={colors.accent} />
+                <Text style={[styles.infoText, { color: colors.foreground }]}>
+                  Kreiraj Firebase projekat na{" "}
+                  <Text style={[styles.infoHighlight, { color: colors.accent }]}>
+                    console.firebase.google.com
+                  </Text>
+                  , omogući Realtime Database, i preuzmi kredencijale iz Project Settings.
+                </Text>
+              </View>
               {Object.keys(fbDraft).map((key) => (
                 <View key={key} style={styles.fieldGroup}>
                   <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
@@ -657,6 +669,18 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   saveBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+
+  /* Info box */
+  infoBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  infoText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 16 },
+  infoHighlight: { fontFamily: "Inter_600SemiBold" },
 
   /* Danger */
   dangerBtn: {

@@ -6,6 +6,11 @@ import React, {
   useEffect,
   useState,
 } from "react";
+import {
+  estimateBase64Size,
+  IMAGE_COMPRESSION_SETTINGS,
+} from "@/lib/imageCompression";
+import { initializeFirebase, updateUserProfile, listenToUserProfile } from "@/lib/firebase";
 
 export interface Message {
   id: string;
@@ -107,16 +112,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadPersistedData();
-  }, []);
-
-  useEffect(() => {
-    if (expoPushToken && currentUser.id) {
-      registerPushToken(expoPushToken);
-    }
-  }, [expoPushToken, currentUser.id, registerPushToken]);
-
   const loadPersistedData = async () => {
     try {
       const [
@@ -149,44 +144,201 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const registerPushToken = useCallback(async (token: string) => {
+    try {
+      console.log("🔑 REGISTERING PUSH TOKEN:", token);
+      setExpoPushToken(token);
+      await AsyncStorage.setItem("expoPushToken", token);
+      // Register with our API server
+      const API_BASE_URL = "https://couple-chat-api.onrender.com"; // Production API URL
+      console.log("📡 Sending token to API server:", `${API_BASE_URL}/api/push/register`);
+      const response = await fetch(`${API_BASE_URL}/api/push/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          token,
+        }),
+      });
+      console.log("✅ Token registration response:", response.status, await response.text());
+    } catch (error) {
+      console.error("❌ Failed to register push token:", error);
+    }
+  }, [currentUser.id]);
+
+  const notifyPartner = useCallback(async (title: string, body: string) => {
+    try {
+      console.log("📤 SENDING NOTIFICATION to partner:", partner.id);
+      const API_BASE_URL = "https://couple-chat-api.onrender.com"; // Production API URL
+      console.log("🌐 API URL:", `${API_BASE_URL}/api/push/notify`);
+      const payload: Record<string, unknown> = {
+        toUserId: partner.id,
+        title,
+        body,
+      };
+      if (expoPushToken) {
+        payload.token = expoPushToken;
+      }
+      const response = await fetch(`${API_BASE_URL}/api/push/notify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      console.log("📬 Notification response:", response.status, await response.text());
+    } catch (error) {
+      console.error("❌ Failed to send push notification:", error);
+    }
+  }, [partner.id, expoPushToken]);
+
+  useEffect(() => {
+    loadPersistedData();
+  }, []);
+
+  // Initialize Firebase when config is set
+  useEffect(() => {
+    if (firebaseConfig && Object.keys(firebaseConfig).length > 0) {
+      try {
+        console.log("🔥 Initializing Firebase...");
+        initializeFirebase(firebaseConfig);
+        
+        // Setup listener for current user's profile changes from Firebase
+        const unsubscribeCurrent = listenToUserProfile(
+          currentUser.id,
+          (profile) => {
+            console.log("🔄 Current user profile updated from Firebase:", profile);
+            if (profile) {
+              setCurrentUser(prev => ({ ...prev, ...profile }));
+            }
+          }
+        );
+
+        // Setup listener for partner's profile changes from Firebase
+        const unsubscribePartner = listenToUserProfile(
+          partner.id,
+          (profile) => {
+            console.log("🔄 Partner profile updated from Firebase:", profile);
+            if (profile) {
+              setPartner(prev => ({ ...prev, ...profile }));
+            }
+          }
+        );
+
+        return () => {
+          unsubscribeCurrent?.();
+          unsubscribePartner?.();
+        };
+      } catch (error) {
+        console.error("❌ Failed to initialize Firebase:", error);
+      }
+    }
+  }, [firebaseConfig, currentUser.id, partner.id]);
+
+  useEffect(() => {
+    if (expoPushToken && currentUser.id) {
+      registerPushToken(expoPushToken);
+    }
+  }, [expoPushToken, currentUser.id, registerPushToken]);
+
   const updateMood = useCallback(
     async (mood: string) => {
       const updated = { ...currentUser, mood };
       setCurrentUser(updated);
       await AsyncStorage.setItem("currentUser", JSON.stringify(updated));
+      
+      // Sync to Firebase if configured
+      if (firebaseConfig && Object.keys(firebaseConfig).length > 0) {
+        try {
+          await updateUserProfile(currentUser.id, { mood });
+          console.log("🔥 Mood synced to Firebase:", mood);
+        } catch (error) {
+          console.warn("⚠️ Failed to sync mood to Firebase:", error);
+        }
+      }
     },
-    [currentUser]
+    [currentUser, firebaseConfig]
   );
 
   const updateAvatar = useCallback(
     async (base64: string) => {
-      const updated = { ...currentUser, avatarBase64: base64 };
-      setCurrentUser(updated);
-      await AsyncStorage.setItem("currentUser", JSON.stringify(updated));
+      try {
+        const sizeKB = estimateBase64Size(base64);
+        if (sizeKB > IMAGE_COMPRESSION_SETTINGS.maxSizeKB) {
+          console.warn(
+            `⚠️ Avatar is ${sizeKB}KB, exceeds max ${IMAGE_COMPRESSION_SETTINGS.maxSizeKB}KB.`
+          );
+        }
+
+        const updated = { ...currentUser, avatarBase64: base64 };
+        setCurrentUser(updated);
+        await AsyncStorage.setItem("currentUser", JSON.stringify(updated));
+        
+        // Sync to Firebase if configured
+        if (firebaseConfig && Object.keys(firebaseConfig).length > 0) {
+          try {
+            await updateUserProfile(currentUser.id, { avatarBase64: base64 });
+            console.log("🔥 Avatar synced to Firebase");
+          } catch (error) {
+            console.warn("⚠️ Failed to sync avatar to Firebase:", error);
+          }
+        }
+      } catch (error) {
+        console.error("Error updating avatar:", error);
+      }
     },
-    [currentUser]
+    [currentUser, firebaseConfig]
   );
 
   const sendMessage = useCallback(
     async (msg: Omit<Message, "id" | "timestamp" | "senderId">) => {
-      const newMsg: Message = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        senderId: "me",
-        timestamp: Date.now(),
-        ...msg,
-      };
-      const updated = [...messages, newMsg];
-      setMessages(updated);
-      await AsyncStorage.setItem("messages", JSON.stringify(updated));
-      const notificationBody =
-        msg.type === "text"
-          ? msg.text
-          : msg.type === "media"
-          ? "Poslao/la je fotografiju"
-          : msg.type === "gif"
-          ? "Poslao/la je gif"
-          : "Nova poruka";
-      notifyPartner(`Nova poruka od ${currentUser.name}`, notificationBody);
+      try {
+        let finalMsg = msg;
+
+        // Handle image compression (Base64 only)
+        // GIFs should always be sent as URLs via gifUrl, NEVER as mediaBase64
+        if (msg.mediaBase64 && msg.mediaType === "image") {
+          const sizeKB = estimateBase64Size(msg.mediaBase64);
+          if (sizeKB > IMAGE_COMPRESSION_SETTINGS.maxSizeKB) {
+            console.warn(
+              `⚠️ Image is ${sizeKB}KB, exceeds max ${IMAGE_COMPRESSION_SETTINGS.maxSizeKB}KB. Consider re-compressing.`
+            );
+          }
+          console.log(`✅ Image stored as Base64: ${sizeKB}KB (compressed)`);
+        }
+
+        // GIF URLs should NOT have mediaBase64
+        if (msg.type === "gif") {
+          if (msg.mediaBase64) {
+            console.warn("⚠️ GIF message should not contain mediaBase64, only gifUrl");
+            finalMsg = { ...msg, mediaBase64: undefined };
+          }
+          console.log(`✅ GIF stored as URL: ${msg.gifUrl}`);
+        }
+
+        const newMsg: Message = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          senderId: "me",
+          timestamp: Date.now(),
+          ...finalMsg,
+        };
+        const updated = [...messages, newMsg];
+        setMessages(updated);
+        await AsyncStorage.setItem("messages", JSON.stringify(updated));
+        const notificationBody =
+          msg.type === "text"
+            ? msg.text ?? "Nova poruka"
+            : msg.type === "media"
+            ? "Poslao/la je fotografiju"
+            : msg.type === "gif"
+            ? "Poslao/la je GIF"
+            : "Nova poruka";
+        notifyPartner(`Nova poruka od ${currentUser.name}`, notificationBody);
+      } catch (error) {
+        console.error("Error sending message:", error);
+      }
     },
     [messages, notifyPartner, currentUser.name]
   );
@@ -254,46 +406,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem("currentUser", JSON.stringify(newCurrentUser));
     await AsyncStorage.setItem("partner", JSON.stringify(newPartner));
   }, [currentUser, partner]);
-
-  const registerPushToken = useCallback(async (token: string) => {
-    try {
-      setExpoPushToken(token);
-      await AsyncStorage.setItem("expoPushToken", token);
-      // Register with our API server
-      const API_BASE_URL = "http://localhost:3000"; // Adjust as needed
-      await fetch(`${API_BASE_URL}/api/push/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userId: currentUser.id,
-          token,
-        }),
-      });
-    } catch (error) {
-      console.error("Failed to register push token:", error);
-    }
-  }, [currentUser.id]);
-
-  const notifyPartner = useCallback(async (title: string, body: string) => {
-    try {
-      const API_BASE_URL = "http://localhost:3000"; // Adjust as needed
-      await fetch(`${API_BASE_URL}/api/push/notify`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          toUserId: partner.id,
-          title,
-          body,
-        }),
-      });
-    } catch (error) {
-      console.error("Failed to send push notification:", error);
-    }
-  }, [partner.id]);
 
   return (
     <AppContext.Provider

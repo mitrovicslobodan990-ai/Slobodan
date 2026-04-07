@@ -15,6 +15,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/context/AppContext";
@@ -23,6 +25,8 @@ import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -35,11 +39,6 @@ async function registerForPushNotificationsAsync() {
     );
     return null;
   }
-
-  const [{ default: Device }, { default: Notifications }] = await Promise.all([
-    import("expo-device"),
-    import("expo-notifications"),
-  ]);
 
   if (!Device.isDevice) {
     console.warn("Push notifications only work on a physical device.");
@@ -68,9 +67,16 @@ async function registerForPushNotificationsAsync() {
     });
   }
 
-  const tokenData = await Notifications.getExpoPushTokenAsync();
-  console.log("Expo push token:", tokenData.data);
-  return tokenData.data;
+  const tokenData = await Notifications.getDevicePushTokenAsync();
+  const token = tokenData.data;
+  console.log("=====================================");
+  console.log("✅ DEVICE PUSH TOKEN REGISTROVAN:");
+  console.log(token);
+  console.log("=====================================");
+  console.log("Za test notifikaciju, koristi:");
+  console.log('Invoke-WebRequest -Uri "http://192.168.0.28:3000/api/push/notify" -Method POST -ContentType "application/json" -Body \'{"token": "' + token + '", "title": "Test notifikacija", "body": "Ovo je test notifikacija"}\'');
+  console.log("=====================================");
+  return token;
 }
 
 SplashScreen.preventAutoHideAsync();

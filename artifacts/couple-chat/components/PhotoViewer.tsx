@@ -44,10 +44,10 @@ export function PhotoViewer({ visible, uri, onClose }: PhotoViewerProps) {
       onPanResponderGrant: () => {
         initialDistance.current = null;
       },
-      onPanResponderMove: (_, gestureState) => {
+      onPanResponderMove: (evt, gestureState) => {
         if (gestureState.numberActiveTouches === 2) {
-          if (gestureState._nativeEvent.changedTouches.length >= 2) {
-            const touches = gestureState._nativeEvent.changedTouches;
+          if (evt.nativeEvent.changedTouches.length >= 2) {
+            const touches = evt.nativeEvent.changedTouches;
             const dist = getDistance(touches);
             if (initialDistance.current === null) {
               initialDistance.current = dist;

@@ -20,6 +20,10 @@ import { useApp } from "@/context/AppContext";
 import { useTheme } from "@/context/ThemeContext";
 import { MessageBubble } from "@/components/MessageBubble";
 import { GifPicker } from "@/components/GifPicker";
+import {
+  estimateBase64Size,
+  IMAGE_COMPRESSION_SETTINGS,
+} from "@/lib/imageCompression";
 import { MoodPicker } from "@/components/MoodPicker";
 
 function HeaderAvatar({
@@ -99,6 +103,10 @@ export default function ChatScreen() {
     await sendMessage({ type: "text", text: text.trim() });
     setText("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Scroll to show new message
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 50);
   }, [text, sendMessage]);
 
   const handlePickImage = useCallback(async () => {
@@ -108,17 +116,34 @@ export default function ChatScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       base64: true,
       quality: 0.7,
     });
-    if (!result.canceled && result.assets[0].base64) {
-      await sendMessage({
-        type: "media",
-        mediaBase64: result.assets[0].base64,
-        mediaType: "image",
-      });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!result.canceled && result.assets[0].uri) {
+      try {
+        const base64 = result.assets[0].base64 ?? "";
+        if (!base64) {
+          throw new Error("No base64 data returned from image picker.");
+        }
+
+        const sizeKB = estimateBase64Size(base64);
+        console.log(`📸 Image base64 size: ${sizeKB}KB`);
+
+        await sendMessage({
+          type: "media",
+          mediaBase64: base64,
+          mediaType: "image",
+        });
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        // Scroll to show new message
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 50);
+      } catch (error) {
+        Alert.alert("Greška", "Nije moguće obraditi sliku.");
+        console.error("Image upload error:", error);
+      }
     }
   }, [sendMessage]);
 
@@ -126,17 +151,23 @@ export default function ChatScreen() {
     await sendPoke();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert("Bocnuto! 👉", `Bocnuo/la si ${partner.name}!`);
+    // Scroll to show new message
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 50);
   }, [sendPoke, partner.name]);
 
   const handleGifSelect = useCallback(
     async (gif: { id: string; url: string; preview: string; title: string }) => {
       await sendMessage({ type: "gif", gifUrl: gif.url });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // Scroll to show new message
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 50);
     },
     [sendMessage]
   );
-
-  const reversedMessages = [...messages].reverse();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -216,18 +247,17 @@ export default function ChatScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 120 : 80}
+        behavior={Platform.OS === "ios" ? "padding" : "position"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
       >
         <FlatList
           ref={flatListRef}
-          data={reversedMessages}
+          data={messages}
           keyExtractor={(item) => item.id}
-          inverted
           contentContainerStyle={[
             styles.messageList,
             {
-              paddingBottom: 12,
+              paddingBottom: 100,
               paddingTop:
                 Platform.OS === "web" ? 34 : insets.bottom + 12,
             },
@@ -248,8 +278,8 @@ export default function ChatScreen() {
 
       {/* Input Bar */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 120 : 80}
+        behavior={Platform.OS === "ios" ? "padding" : "position"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
       >
         <View
           style={[
