@@ -1,13 +1,17 @@
-import { initializeApp, FirebaseApp } from "firebase/app";
+import { initializeApp, FirebaseApp, getApps } from "firebase/app";
 import {
   getDatabase,
   Database,
   ref,
   set,
-  onValue,
+  update,
+  get,
+  remove,
+    onValue,
   Unsubscribe,
+  push, // Add push for generating unique keys
 } from "firebase/database";
-import { UserProfile } from "@/context/AppContext";
+import { Message, UserProfile } from "@/context/AppContext";
 
 let app: FirebaseApp | null = null;
 let database: Database | null = null;
@@ -19,6 +23,10 @@ export function initializeFirebase(firebaseConfig: Record<string, string>) {
   }
 
   try {
+    const existingApps = getApps();
+    if (existingApps.length > 0) {
+      app = existingApps[0];
+    } else {
     const config = {
       apiKey: firebaseConfig.apiKey,
       authDomain: firebaseConfig.authDomain || "",
@@ -28,8 +36,9 @@ export function initializeFirebase(firebaseConfig: Record<string, string>) {
       messagingSenderId: firebaseConfig.messagingSenderId || "",
       appId: firebaseConfig.appId || "",
     };
-
     app = initializeApp(config);
+    }
+
     database = getDatabase(app);
     console.log("✅ Firebase initialized");
     return { app, database };
@@ -39,32 +48,61 @@ export function initializeFirebase(firebaseConfig: Record<string, string>) {
   }
 }
 
-export function updateUserProfile(
+export function getFirebaseInstance() {
+  return { app, database };
+}
+
+export async function setUserProfile(
+  userId: string,
+  profile: UserProfile
+): Promise<void> {
+  if (!database) throw new Error("Firebase not initialized");
+  try {
+    const userRef = ref(database, `users/${userId}`);
+    return set(userRef, profile);
+  } catch (error) {
+    console.error("Error setting user profile:", error);
+    throw error;
+  }
+}
+
+export async function updateUserProfile(
   userId: string,
   updates: Partial<UserProfile>
 ): Promise<void> {
-  if (!database) {
-    return Promise.reject(new Error("Firebase not initialized"));
-  }
-
+  if (!database) throw new Error("Firebase not initialized");
   try {
     const userRef = ref(database, `users/${userId}`);
-    
-    // Filter out undefined values - Firebase doesn't allow them
-    const dataToSet = Object.fromEntries(
+    const dataToUpdate = Object.fromEntries(
       Object.entries(updates).filter(([_, value]) => value !== undefined)
     );
-    
-    return set(userRef, dataToSet);
+
+    return update(userRef, dataToUpdate);
   } catch (error) {
     console.error("Error updating user profile:", error);
     throw error;
   }
 }
 
+export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+  if (!database) throw new Error("Firebase not initialized");
+
+  try {
+    const userRef = ref(database, `users/${userId}`);
+    const snapshot = await get(userRef);
+    if (snapshot.exists()) {
+      return snapshot.val() as UserProfile;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    throw error;
+  }
+}
+
 export function listenToUserProfile(
   userId: string,
-  onUpdate: (profile: UserProfile) => void
+  onUpdate: (profile: UserProfile | null) => void
 ): Unsubscribe | null {
   if (!database) {
     console.warn("Firebase not initialized");
@@ -76,10 +114,160 @@ export function listenToUserProfile(
     return onValue(userRef, (snapshot) => {
       if (snapshot.exists()) {
         onUpdate(snapshot.val());
+      } else {
+        onUpdate(null);
       }
     });
   } catch (error) {
     console.error("Error listening to user profile:", error);
+    return null;
+  }
+}
+
+export async function deleteUserProfile(userId: string): Promise<void> {
+  if (!database) throw new Error("Firebase not initialized");
+
+  try {
+    const userRef = ref(database, `users/${userId}`);
+    return remove(userRef);
+  } catch (error) {
+    console.error("Error deleting user profile:", error);
+    throw error;
+  }
+}
+
+// ===== MESSAGE FUNCTIONS =====
+
+export async function saveMessage(
+  message: Message,
+  conversationId: string
+): Promise<void> {
+  if (!database) throw new Error("Firebase not initialized");
+
+  try {
+    const messageRef = ref(database, `conversations/${conversationId}/messages/${message.id}`);
+    return set(messageRef, message);
+  } catch (error) {
+    console.error("Error saving message:", error);
+    throw error;
+  }
+}
+
+export async function getMessages(
+  conversationId: string
+): Promise<Message[]> {
+  if (!database) throw new Error("Firebase not initialized");
+
+  try {
+    const messagesRef = ref(database, `conversations/${conversationId}/messages`);
+    const snapshot = await get(messagesRef);
+    if (snapshot.exists()) {
+      const messagesObj = snapshot.val();
+      return Object.values(messagesObj) as Message[];
+    }
+    return [];
+  } catch (error) {
+    console.error("Error fetching messages:", error);
+    return [];
+  }
+}
+
+export function listenToMessages(
+  conversationId: string,
+  onUpdate: (messages: Message[]) => void
+): Unsubscribe | null {
+  if (!database) {
+    console.warn("Firebase not initialized");
+    return null;
+  }
+
+  try {
+    const messagesRef = ref(database, `conversations/${conversationId}/messages`);
+    return onValue(messagesRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const messagesObj = snapshot.val();
+        const messagesList = Object.values(messagesObj) as Message[];
+        // Sort by timestamp
+        messagesList.sort((a, b) => a.timestamp - b.timestamp);
+        onUpdate(messagesList);
+      } else {
+        onUpdate([]);
+      }
+    });
+  } catch (error) {
+    console.error("Error listening to messages:", error);
+    return null;
+  }
+}
+
+export async function deleteMessage(
+  conversationId: string,
+  messageId: string
+): Promise<void> {
+  if (!database) throw new Error("Firebase not initialized");
+
+  try {
+    const messageRef = ref(database, `conversations/${conversationId}/messages/${messageId}`);
+    return remove(messageRef);
+  } catch (error) {
+    console.error("Error deleting message:", error);
+    throw error;
+  }
+}
+
+// ===== SHARED NOTES FUNCTIONS =====
+
+export async function saveSharedNote(
+  conversationId: string,
+  note: any
+): Promise<void> {
+  if (!database) throw new Error("Firebase not initialized");
+
+  try {
+    const noteRef = ref(database, `conversations/${conversationId}/sharedNote`);
+    return set(noteRef, note);
+  } catch (error) {
+    console.error("Error saving shared note:", error);
+    throw error;
+  }
+}
+
+export async function getSharedNote(conversationId: string): Promise<any | null> {
+  if (!database) throw new Error("Firebase not initialized");
+
+  try {
+    const noteRef = ref(database, `conversations/${conversationId}/sharedNote`);
+    const snapshot = await get(noteRef);
+    if (snapshot.exists()) {
+      return snapshot.val();
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching shared note:", error);
+    return null;
+  }
+}
+
+export function listenToSharedNote(
+  conversationId: string,
+  onUpdate: (note: any | null) => void
+): Unsubscribe | null {
+  if (!database) {
+    console.warn("Firebase not initialized");
+    return null;
+  }
+
+  try {
+    const noteRef = ref(database, `conversations/${conversationId}/sharedNote`);
+    return onValue(noteRef, (snapshot) => {
+      if (snapshot.exists()) {
+        onUpdate(snapshot.val());
+      } else {
+        onUpdate(null);
+      }
+    });
+  } catch (error) {
+    console.error("Error listening to shared note:", error);
     return null;
   }
 }

@@ -22,12 +22,12 @@ interface GifResult {
 
 interface GifPickerProps {
   visible: boolean;
-  apiKey: string;
   onSelect: (gif: GifResult) => void;
   onClose: () => void;
+  apiKey: string;
 }
 
-export function GifPicker({ visible, apiKey, onSelect, onClose }: GifPickerProps) {
+export function GifPicker({ visible, onSelect, onClose, apiKey }: GifPickerProps) {
   const colors = useColors();
   const [search, setSearch] = useState("");
   const [gifs, setGifs] = useState<GifResult[]>([]);
@@ -35,7 +35,11 @@ export function GifPicker({ visible, apiKey, onSelect, onClose }: GifPickerProps
   const [searched, setSearched] = useState(false);
 
   const searchGifs = useCallback(async (query: string) => {
-    if (!apiKey) return;
+    if (!apiKey) {
+      console.warn("Giphy API key not set");
+      return;
+    }
+    
     setLoading(true);
     setSearched(true);
     try {
@@ -45,13 +49,16 @@ export function GifPicker({ visible, apiKey, onSelect, onClose }: GifPickerProps
 
       const res = await fetch(endpoint);
       const data = await res.json();
-      const results: GifResult[] = data.data.map((g: any) => ({
+      
+      // Transform Giphy response to our format
+      const gifs = (data.data || []).map((g: any) => ({
         id: g.id,
         url: g.images.fixed_height.url,
-        preview: g.images.fixed_height_small.url,
-        title: g.title,
+        preview: g.images.fixed_height.url,
+        title: g.title || g.slug,
       }));
-      setGifs(results);
+      
+      setGifs(gifs);
     } catch (e) {
       console.warn("GIF search error:", e);
     } finally {
@@ -60,10 +67,10 @@ export function GifPicker({ visible, apiKey, onSelect, onClose }: GifPickerProps
   }, [apiKey]);
 
   React.useEffect(() => {
-    if (visible && apiKey && !searched) {
+    if (visible && !searched) {
       searchGifs("");
     }
-  }, [visible, apiKey]);
+  }, [visible, searched, searchGifs]);
 
   const handleClose = () => {
     setSearched(false);
@@ -85,63 +92,53 @@ export function GifPicker({ visible, apiKey, onSelect, onClose }: GifPickerProps
           <View style={{ width: 40 }} />
         </View>
 
-        {!apiKey ? (
-          <View style={styles.noKeyContainer}>
-            <Text style={[styles.noKeyText, { color: colors.mutedForeground }]}>
-              Dodaj Giphy API ključ u Postavkama da bi koristio/la GIF-ove
-            </Text>
-          </View>
-        ) : (
-          <>
-            <View style={[styles.searchContainer, { backgroundColor: colors.muted }]}>
-              <Feather name="search" size={18} color={colors.mutedForeground} />
-              <TextInput
-                style={[styles.searchInput, { color: colors.foreground }]}
-                placeholder="Pretraži GIF-ove..."
-                placeholderTextColor={colors.mutedForeground}
-                value={search}
-                onChangeText={setSearch}
-                onSubmitEditing={() => searchGifs(search)}
-                returnKeyType="search"
-              />
-              {search.length > 0 && (
-                <TouchableOpacity onPress={() => { setSearch(""); searchGifs(""); }}>
-                  <Feather name="x-circle" size={18} color={colors.mutedForeground} />
-                </TouchableOpacity>
-              )}
-            </View>
+        <View style={[styles.searchContainer, { backgroundColor: colors.muted }]}>
+          <Feather name="search" size={18} color={colors.mutedForeground} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.foreground }]}
+            placeholder="Pretraži GIF-ove..."
+            placeholderTextColor={colors.mutedForeground}
+            value={search}
+            onChangeText={setSearch}
+            onSubmitEditing={() => searchGifs(search)}
+            returnKeyType="search"
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => { setSearch(""); searchGifs(""); }}>
+              <Feather name="x-circle" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          )}
+        </View>
 
-            {loading ? (
-              <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-            ) : (
-              <FlatList
-                data={gifs}
-                numColumns={2}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.grid}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[styles.gifItem, { backgroundColor: colors.muted }]}
-                    onPress={() => {
-                      onSelect(item);
-                      handleClose();
-                    }}
-                  >
-                    <Image
-                      source={{ uri: item.preview }}
-                      style={styles.gifImage}
-                      resizeMode="cover"
-                    />
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={
-                  <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                    Nema rezultata
-                  </Text>
-                }
-              />
+        {loading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+        ) : (
+          <FlatList
+            data={gifs}
+            numColumns={2}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.grid}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[styles.gifItem, { backgroundColor: colors.muted }]}
+                onPress={() => {
+                  onSelect(item);
+                  handleClose();
+                }}
+              >
+                <Image
+                  source={{ uri: item.preview }}
+                  style={styles.gifImage}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
             )}
-          </>
+            ListEmptyComponent={
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                Nema rezultata
+              </Text>
+            }
+          />
         )}
       </View>
     </Modal>

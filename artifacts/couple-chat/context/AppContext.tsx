@@ -10,7 +10,7 @@ import {
   estimateBase64Size,
   IMAGE_COMPRESSION_SETTINGS,
 } from "@/lib/imageCompression";
-import { initializeFirebase, updateUserProfile, listenToUserProfile } from "@/lib/firebase";
+import { initializeFirebase, updateUserProfile, listenToUserProfile, saveMessage, listenToMessages, saveSharedNote, listenToSharedNote } from "@/lib/firebase";
 
 export interface Message {
   id: string;
@@ -48,14 +48,13 @@ interface AppContextValue {
   sendPoke: () => void;
   updateSharedNote: (content: string) => void;
   clearMessages: () => void;
-  giphyApiKey: string;
-  firebaseConfig: Record<string, string>;
-  updateFirebaseConfig: (config: Record<string, string>) => void;
-  updateGiphyKey: (key: string) => void;
   setUserRole: (role: 'slobodan' | 'aleksandra') => void;
   expoPushToken: string | null;
   registerPushToken: (token: string) => Promise<void>;
   notifyPartner: (title: string, body: string) => Promise<void>;
+  isInitialized: boolean; // ✨ NOVO: App initialization status
+  giphyApiKey: string;
+  updateGiphyApiKey: (key: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -70,7 +69,7 @@ const DEMO_MESSAGES: Message[] = [
   },
   {
     id: "demo2",
-    senderId: "me",
+    senderId: "slobodan",
     text: "Hej! Jedva čekam da vidim tvoj novi smajli status 😊",
     timestamp: Date.now() - 240000,
     type: "text",
@@ -83,6 +82,17 @@ const DEMO_MESSAGES: Message[] = [
     type: "text",
   },
 ];
+
+// ✨ FIREBASE CONFIG AS CONSTANT (outside component to avoid re-creation on every render)
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyD6FspCzKdBDXcYqA1qikjYbY4RWvIQk1Q",
+  authDomain: "couple-chat-5a239.firebaseapp.com",
+  databaseURL: "https://couple-chat-5a239-default-rtdb.europe-west1.firebasedatabase.app/",
+  projectId: "couple-chat-5a239",
+  storageBucket: "couple-chat-5a239.firebasestorage.app",
+  messagingSenderId: "391581056312",
+  appId: "1:391581056312:android:bcfbae03d2a9c0c28ad5cd",
+};
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<UserProfile>({
@@ -102,15 +112,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<Message[]>(DEMO_MESSAGES);
   const [sharedNote, setSharedNote] = useState<SharedNote>({
     id: "note1",
-    content: "Naše zajedničke bilješke... ✨\n\nOvdje možete oboje pisati!",
+    content: "Our shared notes... ✨\n\nYou can both write here!",
     lastEditedBy: "me",
     lastEditedAt: Date.now(),
   });
-  const [giphyApiKey, setGiphyApiKey] = useState("");
-  const [firebaseConfig, setFirebaseConfig] = useState<Record<string, string>>(
-    {}
-  );
+  
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false); // ✨ NOVO: Tracking app initialization
+  const [giphyApiKey, setGiphyApiKey] = useState<string>("");
+
+  // Helper function to generate consistent conversation ID
+  const getConversationId = useCallback((user1Id: string, user2Id: string): string => {
+    return [user1Id, user2Id].sort().join("_");
+  }, []);
 
   const loadPersistedData = async () => {
     try {
@@ -119,28 +133,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         storedPartner,
         storedMessages,
         storedNote,
-        storedGiphy,
-        storedFirebase,
         storedPushToken,
+        storedUserRole,
+        storedGiphyKey,
       ] = await Promise.all([
         AsyncStorage.getItem("currentUser"),
         AsyncStorage.getItem("partner"),
         AsyncStorage.getItem("messages"),
         AsyncStorage.getItem("sharedNote"),
-        AsyncStorage.getItem("giphyApiKey"),
-        AsyncStorage.getItem("firebaseConfig"),
         AsyncStorage.getItem("expoPushToken"),
+        AsyncStorage.getItem("userRole"),
+        AsyncStorage.getItem("giphyApiKey"),
       ]);
 
-      if (storedUser) setCurrentUser(JSON.parse(storedUser));
+      if (storedUser) {
+        setCurrentUser(JSON.parse(storedUser));
+        console.log("✅ Loaded currentUser from AsyncStorage:", JSON.parse(storedUser).id);
+      } else if (storedUserRole) {
+        // Ako nema celog korisnika ali ima sačuvane uloge, postavi je
+        const role = storedUserRole as 'slobodan' | 'aleksandra';
+        const isSlobodan = role === 'slobodan';
+        setCurrentUser({
+          id: role,
+          name: isSlobodan ? 'Slobodan' : 'Aleksandra',
+          mood: isSlobodan ? '😊' : '❤️',
+          avatarBase64: undefined,
+        });
+        console.log("✅ Loaded userRole from AsyncStorage:", role);
+      }
+      
       if (storedPartner) setPartner(JSON.parse(storedPartner));
       if (storedMessages) setMessages(JSON.parse(storedMessages));
       if (storedNote) setSharedNote(JSON.parse(storedNote));
-      if (storedGiphy) setGiphyApiKey(storedGiphy);
-      if (storedFirebase) setFirebaseConfig(JSON.parse(storedFirebase));
       if (storedPushToken) setExpoPushToken(storedPushToken);
+      if (storedGiphyKey) setGiphyApiKey(storedGiphyKey);
     } catch (e) {
       console.warn("Error loading data:", e);
+    } finally {
+      setIsInitialized(true); // ✨ NOVO: Mark app as ready
+      console.log("✅ App initialization complete");
     }
   };
 
@@ -200,10 +231,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize Firebase when config is set
   useEffect(() => {
-    if (firebaseConfig && Object.keys(firebaseConfig).length > 0) {
+    if (FIREBASE_CONFIG && Object.keys(FIREBASE_CONFIG).length > 0) {
       try {
         console.log("🔥 Initializing Firebase...");
-        initializeFirebase(firebaseConfig);
+        initializeFirebase(FIREBASE_CONFIG);
         
         // Setup listener for current user's profile changes from Firebase
         const unsubscribeCurrent = listenToUserProfile(
@@ -227,15 +258,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
         );
 
+        // Setup listener for messages from Firebase
+        const conversationId = getConversationId(currentUser.id, partner.id);
+        const unsubscribeMessages = listenToMessages(conversationId, (firebaseMessages) => {
+          console.log("💬 Messages loaded from Firebase:", firebaseMessages.length);
+          if (firebaseMessages.length > 0) {
+            setMessages(firebaseMessages);
+            AsyncStorage.setItem("messages", JSON.stringify(firebaseMessages));
+          }
+        });
+
+        // Setup listener for shared notes from Firebase
+        const unsubscribeSharedNote = listenToSharedNote(conversationId, (firebaseNote) => {
+          console.log("📝 Shared note loaded from Firebase:", firebaseNote?.content?.substring(0, 50));
+          if (firebaseNote) {
+            setSharedNote(firebaseNote);
+            AsyncStorage.setItem("sharedNote", JSON.stringify(firebaseNote));
+          }
+        });
+
         return () => {
           unsubscribeCurrent?.();
           unsubscribePartner?.();
+          unsubscribeMessages?.();
+          unsubscribeSharedNote?.();
         };
       } catch (error) {
         console.error("❌ Failed to initialize Firebase:", error);
       }
     }
-  }, [firebaseConfig, currentUser.id, partner.id]);
+  }, [currentUser.id, partner.id, getConversationId]);
 
   useEffect(() => {
     if (expoPushToken && currentUser.id) {
@@ -250,7 +302,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.setItem("currentUser", JSON.stringify(updated));
       
       // Sync to Firebase if configured
-      if (firebaseConfig && Object.keys(firebaseConfig).length > 0) {
+      if (FIREBASE_CONFIG && Object.keys(FIREBASE_CONFIG).length > 0) {
         try {
           await updateUserProfile(currentUser.id, { mood });
           console.log("🔥 Mood synced to Firebase:", mood);
@@ -259,7 +311,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [currentUser, firebaseConfig]
+    [currentUser]
   );
 
   const updateAvatar = useCallback(
@@ -277,7 +329,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await AsyncStorage.setItem("currentUser", JSON.stringify(updated));
         
         // Sync to Firebase if configured
-        if (firebaseConfig && Object.keys(firebaseConfig).length > 0) {
+        if (FIREBASE_CONFIG && Object.keys(FIREBASE_CONFIG).length > 0) {
           try {
             await updateUserProfile(currentUser.id, { avatarBase64: base64 });
             console.log("🔥 Avatar synced to Firebase");
@@ -289,12 +341,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.error("Error updating avatar:", error);
       }
     },
-    [currentUser, firebaseConfig]
+    [currentUser]
   );
 
   const sendMessage = useCallback(
     async (msg: Omit<Message, "id" | "timestamp" | "senderId">) => {
       try {
+        // ✨ KRITIČAN CHECK: Provera da li je currentUser pravilno inicijalizovan
+        if (!currentUser.id || currentUser.id === "unknown") {
+          console.error("❌ ERROR: currentUser.id is not valid:", currentUser.id);
+          console.log("⏳ Waiting for app initialization...");
+          // Fallback: koristi "slobodan" kao default
+          const fallbackId = "slobodan";
+          console.warn(`⚠️ Using fallback ID: ${fallbackId}`);
+        }
+        
+        console.log("📨 Sending message from:", currentUser.id, currentUser.name);
+        console.log("📊 isInitialized:", isInitialized);
+        
         let finalMsg = msg;
 
         // Handle image compression (Base64 only)
@@ -320,13 +384,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const newMsg: Message = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          senderId: "me",
+          senderId: currentUser.id, // Koristi stvarni ID
           timestamp: Date.now(),
           ...finalMsg,
         };
+        console.log("✅ Message created with senderId:", newMsg.senderId);
         const updated = [...messages, newMsg];
         setMessages(updated);
         await AsyncStorage.setItem("messages", JSON.stringify(updated));
+        
+        // Save message to Firebase if configured
+        if (FIREBASE_CONFIG && Object.keys(FIREBASE_CONFIG).length > 0) {
+          try {
+            const conversationId = getConversationId(currentUser.id, partner.id);
+            await saveMessage(newMsg, conversationId);
+            console.log("🔥 Message saved to Firebase with senderId:", newMsg.senderId);
+          } catch (error) {
+            console.warn("⚠️ Failed to save message to Firebase:", error);
+          }
+        }
+        
         const notificationBody =
           msg.type === "text"
             ? msg.text ?? "Nova poruka"
@@ -340,13 +417,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.error("Error sending message:", error);
       }
     },
-    [messages, notifyPartner, currentUser.name]
+    [messages, notifyPartner, currentUser.id, currentUser.name, isInitialized, getConversationId]
   );
 
   const sendPoke = useCallback(async () => {
+    console.log("👉 Sending poke from:", currentUser.id, currentUser.name);
+    console.log("📊 isInitialized:", isInitialized);
     const pokeMsg: Message = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      senderId: "me",
+      senderId: currentUser.id,
       text: "👉 Bocnuo/la te!",
       timestamp: Date.now(),
       type: "poke",
@@ -354,8 +433,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = [...messages, pokeMsg];
     setMessages(updated);
     await AsyncStorage.setItem("messages", JSON.stringify(updated));
+    
+    // Save poke message to Firebase if configured
+    if (FIREBASE_CONFIG && Object.keys(FIREBASE_CONFIG).length > 0) {
+      try {
+        const conversationId = getConversationId(currentUser.id, partner.id);
+        await saveMessage(pokeMsg, conversationId);
+        console.log("🔥 Poke message saved to Firebase");
+      } catch (error) {
+        console.warn("⚠️ Failed to save poke to Firebase:", error);
+      }
+    }
+    
     notifyPartner(`Bocnuli ste ${partner.name}`, "Dobio/la si bocnu! 💌");
-  }, [messages, notifyPartner, partner.name]);
+  }, [messages, notifyPartner, partner.name, currentUser.id, currentUser.name, isInitialized, getConversationId]);
 
   const updateSharedNote = useCallback(
     async (content: string) => {
@@ -367,26 +458,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
       setSharedNote(updated);
       await AsyncStorage.setItem("sharedNote", JSON.stringify(updated));
+      
+      // Save to Firebase if configured
+      if (FIREBASE_CONFIG && Object.keys(FIREBASE_CONFIG).length > 0) {
+        try {
+          const conversationId = getConversationId(currentUser.id, partner.id);
+          await saveSharedNote(conversationId, updated);
+          console.log("🔥 Shared note saved to Firebase");
+        } catch (error) {
+          console.warn("⚠️ Failed to save shared note to Firebase:", error);
+        }
+      }
     },
-    [sharedNote, currentUser.name]
+    [sharedNote, currentUser.name, currentUser.id, partner.id, getConversationId]
   );
 
   const clearMessages = useCallback(async () => {
     setMessages([]);
     await AsyncStorage.setItem("messages", JSON.stringify([]));
-  }, []);
-
-  const updateFirebaseConfig = useCallback(
-    async (config: Record<string, string>) => {
-      setFirebaseConfig(config);
-      await AsyncStorage.setItem("firebaseConfig", JSON.stringify(config));
-    },
-    []
-  );
-
-  const updateGiphyKey = useCallback(async (key: string) => {
-    setGiphyApiKey(key);
-    await AsyncStorage.setItem("giphyApiKey", key);
   }, []);
 
   const setUserRole = useCallback(async (role: 'slobodan' | 'aleksandra') => {
@@ -405,7 +494,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPartner(newPartner);
     await AsyncStorage.setItem("currentUser", JSON.stringify(newCurrentUser));
     await AsyncStorage.setItem("partner", JSON.stringify(newPartner));
+    await AsyncStorage.setItem("userRole", role); // ✨ NOVO: Čuvaj ulogu posebno
+    console.log("✅ User role set to:", role);
   }, [currentUser, partner]);
+
+  const updateGiphyApiKey = useCallback(async (key: string) => {
+    setGiphyApiKey(key);
+    await AsyncStorage.setItem("giphyApiKey", key);
+    console.log("✅ Giphy API key updated");
+  }, []);
 
   return (
     <AppContext.Provider
@@ -420,14 +517,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sendPoke,
         updateSharedNote,
         clearMessages,
-        giphyApiKey,
-        firebaseConfig,
-        updateFirebaseConfig,
-        updateGiphyKey,
         setUserRole,
         expoPushToken,
         registerPushToken,
         notifyPartner,
+        isInitialized,
+        giphyApiKey,
+        updateGiphyApiKey,
       }}
     >
       {children}

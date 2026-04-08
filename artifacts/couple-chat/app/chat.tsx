@@ -86,8 +86,8 @@ export default function ChatScreen() {
     messages,
     sendMessage,
     sendPoke,
-    giphyApiKey,
     updateMood,
+    giphyApiKey,
   } = useApp();
   const [text, setText] = useState("");
   const [gifPickerVisible, setGifPickerVisible] = useState(false);
@@ -268,7 +268,7 @@ export default function ChatScreen() {
           renderItem={({ item }) => (
             <MessageBubble
               message={item}
-              isMe={item.senderId === "me"}
+              isMe={item.senderId === currentUser.id} // Provera naspram stvarnog ID-a
               currentUser={currentUser}
               partner={partner}
             />
@@ -340,9 +340,9 @@ export default function ChatScreen() {
 
       <GifPicker
         visible={gifPickerVisible}
-        apiKey={giphyApiKey}
         onSelect={handleGifSelect}
         onClose={() => setGifPickerVisible(false)}
+        apiKey={giphyApiKey}
       />
 
       <MoodPicker
@@ -480,3 +480,4 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
 });
+

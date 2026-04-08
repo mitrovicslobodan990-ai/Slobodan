@@ -31,26 +31,13 @@ export default function ProfileScreen() {
     updateMood,
     updateAvatar,
     clearMessages,
-    giphyApiKey,
-    firebaseConfig,
-    updateFirebaseConfig,
-    updateGiphyKey,
     setUserRole,
+    giphyApiKey,
+    updateGiphyApiKey,
   } = useApp();
 
   const [moodPickerVisible, setMoodPickerVisible] = useState(false);
-  const [showFirebaseForm, setShowFirebaseForm] = useState(false);
-  const [showGiphyForm, setShowGiphyForm] = useState(false);
   const [giphyDraft, setGiphyDraft] = useState(giphyApiKey);
-  const [fbDraft, setFbDraft] = useState<Record<string, string>>({
-    apiKey: firebaseConfig.apiKey || "",
-    authDomain: firebaseConfig.authDomain || "",
-    projectId: firebaseConfig.projectId || "",
-    databaseURL: firebaseConfig.databaseURL || "",
-    appId: firebaseConfig.appId || "",
-    messagingSenderId: firebaseConfig.messagingSenderId || "",
-    storageBucket: firebaseConfig.storageBucket || "",
-  });
 
   const topPad = isFullscreen
     ? 10
@@ -87,19 +74,6 @@ export default function ProfileScreen() {
         },
       },
     ]);
-  };
-
-  const handleSaveFirebase = async () => {
-    await updateFirebaseConfig(fbDraft);
-    setShowFirebaseForm(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert("Sačuvano", "Firebase konfiguracija je uspješno sačuvana!");
-  };
-
-  const handleSaveGiphy = async () => {
-    await updateGiphyKey(giphyDraft);
-    setShowGiphyForm(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const handleSelectTheme = async (name: ThemeName) => {
@@ -316,140 +290,34 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Firebase Config */}
+        {/* Giphy API Key */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
+            GIPHY API KLJUČ
+          </Text>
+          <Text style={[styles.sectionDescription, { color: colors.foreground }]}>
+            Unesi Giphy API ključ za GIF selektor. Preuzmite besplatan ključ sa https://developers.giphy.com/
+          </Text>
+          <TextInput
+            style={[styles.textInput, { color: colors.foreground, borderColor: colors.border }]}
+            placeholder="Unesi Giphy API ključ..."
+            placeholderTextColor={colors.mutedForeground}
+            value={giphyDraft}
+            onChangeText={setGiphyDraft}
+            secureTextEntry={true}
+          />
           <TouchableOpacity
-            style={styles.settingRowBtn}
-            onPress={() => setShowFirebaseForm(!showFirebaseForm)}
+            onPress={() => updateGiphyApiKey(giphyDraft)}
+            style={[styles.saveBtn, { backgroundColor: colors.primary }]}
           >
-            <View style={styles.switchLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: "#FF8C0022" }]}>
-                <Feather name="database" size={18} color="#FF8C00" />
-              </View>
-              <View>
-                <Text style={[styles.settingLabel, { color: colors.foreground }]}>
-                  Firebase konfiguracija
-                </Text>
-                <Text style={[styles.settingDesc, { color: colors.mutedForeground }]}>
-                  {firebaseConfig.projectId
-                    ? `Projekt: ${firebaseConfig.projectId}`
-                    : "Nije postavljeno"}
-                </Text>
-              </View>
-            </View>
-            <Feather
-              name={showFirebaseForm ? "chevron-up" : "chevron-down"}
-              size={18}
-              color={colors.mutedForeground}
-            />
+            <Feather name="save" size={16} color={colors.primaryForeground} />
+            <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>
+              Spremi Giphy ključ
+            </Text>
           </TouchableOpacity>
-
-          {showFirebaseForm && (
-            <View style={[styles.formContainer, { borderTopColor: colors.border }]}>
-              <View style={[styles.infoBox, { backgroundColor: colors.secondary + "30" }]}>
-                <Feather name="info" size={16} color={colors.accent} />
-                <Text style={[styles.infoText, { color: colors.foreground }]}>
-                  Kreiraj Firebase projekat na{" "}
-                  <Text style={[styles.infoHighlight, { color: colors.accent }]}>
-                    console.firebase.google.com
-                  </Text>
-                  , omogući Realtime Database, i preuzmi kredencijale iz Project Settings.
-                </Text>
-              </View>
-              {Object.keys(fbDraft).map((key) => (
-                <View key={key} style={styles.fieldGroup}>
-                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
-                    {key}
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.fieldInput,
-                      {
-                        backgroundColor: colors.muted,
-                        color: colors.foreground,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    value={fbDraft[key]}
-                    onChangeText={(val) =>
-                      setFbDraft((prev) => ({ ...prev, [key]: val }))
-                    }
-                    placeholder={`Unesi ${key}`}
-                    placeholderTextColor={colors.mutedForeground}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
-              ))}
-              <TouchableOpacity
-                onPress={handleSaveFirebase}
-                style={[styles.saveBtn, { backgroundColor: colors.primary }]}
-              >
-                <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>
-                  Sačuvaj Firebase
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </View>
 
-        {/* Giphy Key */}
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <TouchableOpacity
-            style={styles.settingRowBtn}
-            onPress={() => setShowGiphyForm(!showGiphyForm)}
-          >
-            <View style={styles.switchLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: colors.primary + "22" }]}>
-                <Text style={{ fontSize: 17 }}>🎭</Text>
-              </View>
-              <View>
-                <Text style={[styles.settingLabel, { color: colors.foreground }]}>
-                  Giphy API ključ
-                </Text>
-                <Text style={[styles.settingDesc, { color: colors.mutedForeground }]}>
-                  {giphyApiKey ? "Postavljeno ✓" : "Nije postavljeno"}
-                </Text>
-              </View>
-            </View>
-            <Feather
-              name={showGiphyForm ? "chevron-up" : "chevron-down"}
-              size={18}
-              color={colors.mutedForeground}
-            />
-          </TouchableOpacity>
-
-          {showGiphyForm && (
-            <View style={[styles.formContainer, { borderTopColor: colors.border }]}>
-              <TextInput
-                style={[
-                  styles.fieldInput,
-                  {
-                    backgroundColor: colors.muted,
-                    color: colors.foreground,
-                    borderColor: colors.border,
-                  },
-                ]}
-                value={giphyDraft}
-                onChangeText={setGiphyDraft}
-                placeholder="Unesi Giphy API ključ"
-                placeholderTextColor={colors.mutedForeground}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TouchableOpacity
-                onPress={handleSaveGiphy}
-                style={[styles.saveBtn, { backgroundColor: colors.primary }]}
-              >
-                <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>
-                  Sačuvaj Giphy ključ
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {/* Danger */}
+        {/* Danger Zone */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
             OPASNA ZONA
@@ -516,6 +384,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_400Regular",
     marginBottom: 16,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    fontFamily: "Inter_400Regular",
   },
   roleButtons: {
     flexDirection: "row",
