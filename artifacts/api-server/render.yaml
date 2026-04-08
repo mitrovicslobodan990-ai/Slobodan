@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: couple-chat-api
+    runtime: node
+    plan: free
+    buildCommand: pnpm install && pnpm run build
+    startCommand: pnpm run start
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: NODE_ENV
+        value: production
+      - key: FIREBASE_SERVICE_ACCOUNT_PATH
+        value: /etc/secrets/firebase-key.json
+      - key: GIPHY_API_KEY
+        value: ${GIPHY_API_KEY}
+
+routes:
+  - type: http
+    source: /
+    destination: http://localhost:3000

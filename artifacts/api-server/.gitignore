@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+dist/
+*.pnpm-lock.yaml
+pnpm-lock.yaml
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Firebase service account key (CRITICAL - NEVER COMMIT)
+*-firebase-adminsdk-*.json
+serviceAccountKey.json
+firebase-key.json
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Build outputs
+build/
+.build/
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Render
+.render/
