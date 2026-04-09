@@ -25,22 +25,8 @@ router.post("/notify", async (req, res) => {
   try {
     // Inicijalizujemo admina SAMO JEDNOM na početku
     const admin = await getFirebaseAdmin();
-    const db = admin.database();
-
-    // 1. UPIS U BAZU (Radimo ovo prvo, da poruka sigurno ostane sačuvana)
-    try {
-      await db.ref('messages').push({
-        title,
-        body,
-        senderId: data?.senderId || 'unknown',
-        timestamp: Date.now()
-      });
-      console.log("✅ Upisano u bazu");
-    } catch (dbErr) {
-      console.error("❌ Greška u bazi, ali nastavljam ka notifikaciji:", dbErr);
-    }
-
-    // 2. SLANJE NOTIFIKACIJE (Expo ili Firebase)
+    
+    // SAMO slanje notifikacije - poruke se već čuvaju u /conversations/{id}/messages na frontend-u
     if (pushToken.startsWith("ExponentPushToken") || pushToken.startsWith("ExpoPushToken")) {
       // EXPO LOGIKA
       if (Expo.isExpoPushToken(pushToken)) {
