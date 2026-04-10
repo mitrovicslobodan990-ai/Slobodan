@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useRef, useState, useEffect } from "react";
 import {
   Alert,
   FlatList,
@@ -88,6 +88,10 @@ export default function ChatScreen() {
     sendPoke,
     updateMood,
     giphyApiKey,
+    hasMoreMessages,
+    loadMoreMessages,
+    isLoadingMore,
+    markMessagesAsSeen,
   } = useApp();
   const [text, setText] = useState("");
   const [gifPickerVisible, setGifPickerVisible] = useState(false);
@@ -168,6 +172,35 @@ export default function ChatScreen() {
     },
     [sendMessage]
   );
+
+  // Scroll to bottom when messages change (for new messages)
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: false });
+      }, 100);
+    }
+  }, [messages]);
+
+  // Mark messages as seen when they are displayed
+  useEffect(() => {
+    if (messages.length > 0 && currentUser.id) {
+      const unseenMessageIds = messages
+        .filter(msg => msg.senderId !== currentUser.id) // Only messages from partner
+        .filter(msg => !msg.seen || !msg.seen[currentUser.id]) // Not seen by current user
+        .map(msg => msg.id);
+
+      if (unseenMessageIds.length > 0) {
+        markMessagesAsSeen(unseenMessageIds);
+      }
+    }
+  }, [messages, currentUser.id, markMessagesAsSeen]);
+
+  const handleScrollToTop = useCallback(async () => {
+    if (hasMoreMessages && !isLoadingMore) {
+      await loadMoreMessages();
+    }
+  }, [hasMoreMessages, isLoadingMore, loadMoreMessages]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -265,6 +298,15 @@ export default function ChatScreen() {
           showsVerticalScrollIndicator={false}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
+          inverted={false} // Keep normal order (oldest at top)
+          onScroll={({ nativeEvent }) => {
+            const { contentOffset } = nativeEvent;
+            // If scrolled to top (within 50 pixels), load more messages
+            if (contentOffset.y <= 50 && hasMoreMessages && !isLoadingMore) {
+              handleScrollToTop();
+            }
+          }}
+          scrollEventThrottle={16}
           renderItem={({ item }) => (
             <MessageBubble
               message={item}
@@ -273,6 +315,24 @@ export default function ChatScreen() {
               partner={partner}
             />
           )}
+          ListHeaderComponent={
+            isLoadingMore ? (
+              <View style={styles.loadingMore}>
+                <Text style={{ color: colors.mutedForeground, fontSize: 14 }}>
+                  Učitavanje starijih poruka...
+                </Text>
+              </View>
+            ) : hasMoreMessages ? (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={handleScrollToTop}
+              >
+                <Text style={{ color: colors.primary, fontSize: 14 }}>
+                  Učitaj starije poruke
+                </Text>
+              </TouchableOpacity>
+            ) : null
+          }
         />
       </KeyboardAvoidingView>
 
@@ -478,6 +538,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 0,
+  },
+  loadingMore: {
+    padding: 16,
+    alignItems: "center",
+  },
+  loadMoreButton: {
+    padding: 16,
+    alignItems: "center",
   },
 });
 

@@ -25,6 +25,10 @@ function formatTime(ts: number) {
   });
 }
 
+function isMessageSeen(message: Message, partnerId: string): boolean {
+  return !!(message.seen && message.seen[partnerId]);
+}
+
 function Avatar({
   user,
   size = 32,
@@ -90,9 +94,16 @@ export function MessageBubble({ message, isMe, currentUser, partner }: MessageBu
             👉 {isMe ? "Bocnuo/la si ga/je!" : "Bocnuo/la te!"}
           </Text>
         </View>
-        <Text style={[styles.timestamp, { color: colors.mutedForeground }]}>
-          {formatTime(message.timestamp)}
-        </Text>
+        <View style={styles.timestampRow}>
+          <Text style={[styles.timestamp, { color: colors.mutedForeground }]}>
+            {formatTime(message.timestamp)}
+          </Text>
+          {isMe && (
+            <Text style={[styles.seenIndicator, { color: isMessageSeen(message, partner.id) ? colors.primary : colors.mutedForeground }]}>
+              {isMessageSeen(message, partner.id) ? "✓✓" : "✓"}
+            </Text>
+          )}
+        </View>
       </View>
     );
   }
@@ -128,17 +139,24 @@ export function MessageBubble({ message, isMe, currentUser, partner }: MessageBu
                 resizeMode="cover"
               />
             </View>
-            <Text
-              style={[
-                styles.timestamp,
-                {
-                  color: colors.mutedForeground,
-                  textAlign: isMe ? "right" : "left",
-                },
-              ]}
-            >
-              {formatTime(message.timestamp)}
-            </Text>
+            <View style={styles.timestampRow}>
+              <Text
+                style={[
+                  styles.timestamp,
+                  {
+                    color: colors.mutedForeground,
+                    textAlign: isMe ? "right" : "left",
+                  },
+                ]}
+              >
+                {formatTime(message.timestamp)}
+              </Text>
+              {isMe && (
+                <Text style={[styles.seenIndicator, { color: isMessageSeen(message, partner.id) ? colors.primary : colors.mutedForeground }]}>
+                  {isMessageSeen(message, partner.id) ? "✓✓" : "✓"}
+                </Text>
+              )}
+            </View>
             <PhotoViewer
               visible={photoVisible}
               uri={`data:image/jpeg;base64,${message.mediaBase64}`}
@@ -162,17 +180,24 @@ export function MessageBubble({ message, isMe, currentUser, partner }: MessageBu
                 <Text style={styles.gifBadgeText}>GIF</Text>
               </View>
             </View>
-            <Text
-              style={[
-                styles.timestamp,
-                {
-                  color: colors.mutedForeground,
-                  textAlign: isMe ? "right" : "left",
-                },
-              ]}
-            >
-              {formatTime(message.timestamp)}
-            </Text>
+            <View style={styles.timestampRow}>
+              <Text
+                style={[
+                  styles.timestamp,
+                  {
+                    color: colors.mutedForeground,
+                    textAlign: isMe ? "right" : "left",
+                  },
+                ]}
+              >
+                {formatTime(message.timestamp)}
+              </Text>
+              {isMe && (
+                <Text style={[styles.seenIndicator, { color: isMessageSeen(message, partner.id) ? colors.primary : colors.mutedForeground }]}>
+                  {isMessageSeen(message, partner.id) ? "✓✓" : "✓"}
+                </Text>
+              )}
+            </View>
             <PhotoViewer
               visible={photoVisible}
               uri={message.gifUrl}
@@ -195,17 +220,24 @@ export function MessageBubble({ message, isMe, currentUser, partner }: MessageBu
                 {message.text}
               </Text>
             </View>
-            <Text
-              style={[
-                styles.timestamp,
-                {
-                  color: colors.mutedForeground,
-                  textAlign: isMe ? "right" : "left",
-                },
-              ]}
-            >
-              {formatTime(message.timestamp)}
-            </Text>
+            <View style={styles.timestampRow}>
+              <Text
+                style={[
+                  styles.timestamp,
+                  {
+                    color: colors.mutedForeground,
+                    textAlign: isMe ? "right" : "left",
+                  },
+                ]}
+              >
+                {formatTime(message.timestamp)}
+              </Text>
+              {isMe && (
+                <Text style={[styles.seenIndicator, { color: isMessageSeen(message, partner.id) ? colors.primary : colors.mutedForeground }]}>
+                  {isMessageSeen(message, partner.id) ? "✓✓" : "✓"}
+                </Text>
+              )}
+            </View>
           </View>
         )}
       </View>
@@ -304,5 +336,15 @@ const styles = StyleSheet.create({
   pokeText: {
     fontSize: 14,
     fontFamily: "Inter_500Medium",
+  },
+  timestampRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+  },
+  seenIndicator: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
   },
 });

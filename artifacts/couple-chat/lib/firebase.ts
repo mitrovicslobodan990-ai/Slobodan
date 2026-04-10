@@ -146,10 +146,44 @@ export async function saveMessage(
 
   try {
     const messageRef = ref(database, `conversations/${conversationId}/messages/${message.id}`);
-    return set(messageRef, message);
+    await set(messageRef, message);
+
+    // Maintain only the last 200 messages
+    await maintainMessageLimit(conversationId);
   } catch (error) {
     console.error("Error saving message:", error);
     throw error;
+  }
+}
+
+async function maintainMessageLimit(conversationId: string): Promise<void> {
+  if (!database) return;
+
+  try {
+    const messagesRef = ref(database, `conversations/${conversationId}/messages`);
+    const snapshot = await get(messagesRef);
+
+    if (snapshot.exists()) {
+      const messagesObj = snapshot.val();
+      const messageIds = Object.keys(messagesObj);
+
+      // Sort messages by timestamp (newest first)
+      const sortedMessages = messageIds
+        .map(id => ({ id, ...messagesObj[id] }))
+        .sort((a, b) => b.timestamp - a.timestamp);
+
+      // If we have more than 200 messages, delete the oldest ones
+      if (sortedMessages.length > 200) {
+        const messagesToDelete = sortedMessages.slice(200);
+        const deletePromises = messagesToDelete.map(msg =>
+          database ? remove(ref(database, `conversations/${conversationId}/messages/${msg.id}`)) : Promise.resolve()
+        );
+        await Promise.all(deletePromises);
+        console.log(`🗑️ Deleted ${messagesToDelete.length} old messages to maintain 200 message limit`);
+      }
+    }
+  } catch (error) {
+    console.error("Error maintaining message limit:", error);
   }
 }
 
@@ -172,6 +206,43 @@ export async function getMessages(
   }
 }
 
+export async function getMessagesPaginated(
+  conversationId: string,
+  limit: number = 30,
+  startAfter?: number
+): Promise<{ messages: Message[], hasMore: boolean }> {
+  if (!database) throw new Error("Firebase not initialized");
+
+  try {
+    const messagesRef = ref(database, `conversations/${conversationId}/messages`);
+    const snapshot = await get(messagesRef);
+
+    if (snapshot.exists()) {
+      const messagesObj = snapshot.val();
+      let messagesList = Object.values(messagesObj) as Message[];
+
+      // Sort by timestamp (newest first)
+      messagesList.sort((a, b) => b.timestamp - a.timestamp);
+
+      // Apply pagination
+      let startIndex = 0;
+      if (startAfter) {
+        const afterIndex = messagesList.findIndex(msg => msg.timestamp <= startAfter);
+        startIndex = afterIndex >= 0 ? afterIndex + 1 : 0;
+      }
+
+      const paginatedMessages = messagesList.slice(startIndex, startIndex + limit);
+      const hasMore = startIndex + limit < messagesList.length;
+
+      return { messages: paginatedMessages, hasMore };
+    }
+    return { messages: [], hasMore: false };
+  } catch (error) {
+    console.error("Error fetching paginated messages:", error);
+    return { messages: [], hasMore: false };
+  }
+}
+
 export function listenToMessages(
   conversationId: string,
   onUpdate: (messages: Message[]) => void
@@ -187,15 +258,52 @@ export function listenToMessages(
       if (snapshot.exists()) {
         const messagesObj = snapshot.val();
         const messagesList = Object.values(messagesObj) as Message[];
-        // Sort by timestamp
-        messagesList.sort((a, b) => a.timestamp - b.timestamp);
-        onUpdate(messagesList);
+        // Sort by timestamp (newest first) and take only the last 30
+        const recentMessages = messagesList
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .slice(0, 30);
+        onUpdate(recentMessages);
       } else {
         onUpdate([]);
       }
     });
   } catch (error) {
     console.error("Error listening to messages:", error);
+    return null;
+  }
+}
+
+export function listenToMessagesPaginated(
+  conversationId: string,
+  limit: number = 30,
+  onUpdate: (messages: Message[], hasMore: boolean) => void
+): Unsubscribe | null {
+  if (!database) {
+    console.warn("Firebase not initialized");
+    return null;
+  }
+
+  try {
+    const messagesRef = ref(database, `conversations/${conversationId}/messages`);
+    return onValue(messagesRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const messagesObj = snapshot.val();
+        let messagesList = Object.values(messagesObj) as Message[];
+
+        // Sort by timestamp (newest first)
+        messagesList.sort((a, b) => b.timestamp - a.timestamp);
+
+        // Take only the specified limit
+        const recentMessages = messagesList.slice(0, limit);
+        const hasMore = messagesList.length > limit;
+
+        onUpdate(recentMessages, hasMore);
+      } else {
+        onUpdate([], false);
+      }
+    });
+  } catch (error) {
+    console.error("Error listening to paginated messages:", error);
     return null;
   }
 }
@@ -211,6 +319,29 @@ export async function deleteMessage(
     return remove(messageRef);
   } catch (error) {
     console.error("Error deleting message:", error);
+    throw error;
+  }
+}
+
+export async function markMessagesAsSeen(
+  conversationId: string,
+  messageIds: string[],
+  userId: string
+): Promise<void> {
+  if (!database) throw new Error("Firebase not initialized");
+
+  try {
+    const updates: { [key: string]: any } = {};
+    const timestamp = Date.now();
+
+    messageIds.forEach(messageId => {
+      updates[`conversations/${conversationId}/messages/${messageId}/seen/${userId}`] = timestamp;
+    });
+
+    await update(ref(database), updates);
+    console.log(`✅ Marked ${messageIds.length} messages as seen by ${userId}`);
+  } catch (error) {
+    console.error("Error marking messages as seen:", error);
     throw error;
   }
 }

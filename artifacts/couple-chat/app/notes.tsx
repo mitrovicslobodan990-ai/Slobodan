@@ -53,7 +53,7 @@ export default function NotesScreen() {
         style={[styles.header, { backgroundColor: palette.headerBg, paddingTop: topPad }]}
       >
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-          Notes
+          Beleške
         </Text>
         <TouchableOpacity
           onPress={() => {

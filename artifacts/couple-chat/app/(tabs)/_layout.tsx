@@ -18,7 +18,7 @@ function NativeTabLayout() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="notes">
         <Icon sf={{ default: "note.text", selected: "note.text" }} />
-        <Label>Bilješke</Label>
+        <Label>Beleške</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: "person.circle", selected: "person.circle.fill" }} />
@@ -79,7 +79,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="notes"
         options={{
-          title: "Bilješke",
+          title: "Beleške",
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="note.text" tintColor={color} size={24} />
