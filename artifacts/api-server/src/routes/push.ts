@@ -5,6 +5,10 @@ import { getFirebaseAdmin } from "../lib/firebaseAdmin";
 const expo = new Expo();
 const router = Router();
 
+router.get("/ping", (req, res) => {
+  res.status(200).send("pong");
+});
+
 router.post("/register", async (req, res) => {
   const { userId, token } = req.body;
   if (typeof userId !== "string" || typeof token !== "string") {
