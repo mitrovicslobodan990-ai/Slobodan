@@ -3,17 +3,22 @@ import {
   Alert,
   FlatList,
   Image,
+  ImageBackground,
+  Keyboard,
   Platform,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+// import { useKeyboardHandler } from "react-native-keyboard-controller";
+import { Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
@@ -22,15 +27,14 @@ import { MessageBubble } from "@/components/MessageBubble";
 import { GifPicker } from "@/components/GifPicker";
 import {
   estimateBase64Size,
-  IMAGE_COMPRESSION_SETTINGS,
 } from "@/lib/imageCompression";
 import { MoodPicker } from "@/components/MoodPicker";
+
 
 function HeaderAvatar({
   avatarBase64,
   mood,
   size = 44,
-  borderColor,
   onPress,
 }: {
   avatarBase64?: string;
@@ -40,38 +44,31 @@ function HeaderAvatar({
   onPress?: () => void;
 }) {
   const uri = avatarBase64 ? `data:image/jpeg;base64,${avatarBase64}` : null;
-  const content = uri ? (
-    <Image
-      source={{ uri }}
-      style={{ width: size, height: size, borderRadius: size / 2 }}
-    />
-  ) : (
-    <View
-      style={{
+  const colors = useColors();
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={onPress ? 0.75 : 1}>
+      <View style={{
         width: size,
         height: size,
         borderRadius: size / 2,
-        backgroundColor: "rgba(255,255,255,0.15)",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Text style={{ fontSize: size * 0.5 }}>{mood}</Text>
-    </View>
-  );
-
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={onPress ? 0.75 : 1}
-      style={{
-        borderRadius: size / 2,
-        borderWidth: 2,
-        borderColor,
-        overflow: "hidden",
-      }}
-    >
-      {content}
+        backgroundColor: colors.muted,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.75,
+        shadowRadius: 16,
+        elevation: 24,
+      }}>
+        <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>
+          {uri ? (
+            <Image source={{ uri }} style={{ width: size, height: size }} />
+          ) : (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: size * 0.5 }}>{mood}</Text>
+            </View>
+          )}
+        </View>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -79,13 +76,13 @@ function HeaderAvatar({
 export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { palette, isFullscreen } = useTheme();
-  const {
+  const { palette, isFullscreen, chatBackground } = useTheme();
+              const {
     currentUser,
     partner,
     messages,
     sendMessage,
-    sendPoke,
+    sendHeart,
     updateMood,
     giphyApiKey,
     hasMoreMessages,
@@ -98,16 +95,27 @@ export default function ChatScreen() {
   const [moodPickerVisible, setMoodPickerVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  const topPad = isFullscreen
-    ? 10
-    : insets.top + (Platform.OS === "web" ? 67 : 0);
+
+
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  const AVATAR_SIZE = 80;
 
   const handleSend = useCallback(async () => {
     if (!text.trim()) return;
-    await sendMessage({ type: "text", text: text.trim() });
+    const msgText = text.trim();
     setText("");
+    await sendMessage({ type: "text", text: msgText });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Scroll to show new message
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 50);
@@ -120,11 +128,11 @@ export default function ChatScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       base64: true,
       quality: 0.7,
     });
-    if (!result.canceled && result.assets[0].uri) {
+    if (!result.canceled && result.assets && result.assets[0]) {
       try {
         const base64 = result.assets[0].base64 ?? "";
         if (!base64) {
@@ -140,7 +148,6 @@ export default function ChatScreen() {
           mediaType: "image",
         });
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        // Scroll to show new message
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }, 50);
@@ -151,21 +158,10 @@ export default function ChatScreen() {
     }
   }, [sendMessage]);
 
-  const handlePoke = useCallback(async () => {
-    await sendPoke();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert("Bocnuto! 👉", `Bocnuo/la si ${partner.name}!`);
-    // Scroll to show new message
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 50);
-  }, [sendPoke, partner.name]);
-
   const handleGifSelect = useCallback(
     async (gif: { id: string; url: string; preview: string; title: string }) => {
       await sendMessage({ type: "gif", gifUrl: gif.url });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      // Scroll to show new message
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 50);
@@ -173,7 +169,6 @@ export default function ChatScreen() {
     [sendMessage]
   );
 
-  // Scroll to bottom when messages change (for new messages)
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => {
@@ -182,12 +177,11 @@ export default function ChatScreen() {
     }
   }, [messages]);
 
-  // Mark messages as seen when they are displayed
   useEffect(() => {
     if (messages.length > 0 && currentUser.id) {
       const unseenMessageIds = messages
-        .filter(msg => msg.senderId !== currentUser.id) // Only messages from partner
-        .filter(msg => !msg.seen || !msg.seen[currentUser.id]) // Not seen by current user
+        .filter(msg => msg.senderId !== currentUser.id)
+        .filter(msg => !msg.seen || !msg.seen[currentUser.id])
         .map(msg => msg.id);
 
       if (unseenMessageIds.length > 0) {
@@ -202,106 +196,118 @@ export default function ChatScreen() {
     }
   }, [hasMoreMessages, isLoadingMore, loadMoreMessages]);
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: palette.headerBg, paddingTop: topPad },
-        ]}
-      >
-        {/* My avatar + mood picker trigger */}
-        <TouchableOpacity
-          onPress={() => setMoodPickerVisible(true)}
-          style={styles.mySection}
+  const backgroundContent = (
+    <View style={[styles.container, { backgroundColor: chatBackground ? 'transparent' : colors.background, paddingTop: 0 }]}>
+      <StatusBar hidden={true} />
+        {/* Floating avatars container */}
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999, flexDirection: 'row', justifyContent: 'space-between' }}>
+        {/* Partner avatar - lijevo */}
+          <View style={{
+            backgroundColor: colors.muted,
+            padding: 8,
+            borderRadius: 100,
+            zIndex: 1000,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.45,
+            shadowRadius: 5,
+            elevation: 10,
+          }}>
+        <HeaderAvatar
+          avatarBase64={partner.avatarBase64}
+          mood={partner.mood}
+          size={AVATAR_SIZE}
+          borderColor={colors.accent}
+          onPress={() => {
+            sendHeart();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }}
+        />
+        <View style={{
+            position: 'absolute',
+            bottom: -8,
+            right: -8,
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.7,
+            shadowRadius: 8,
+            elevation: 16,
+          }}
         >
+          <Text style={{ fontSize: 18 }}>{partner.mood}</Text>
+        </View>
+          </View>
+
+          {/* My avatar - desno */}
+          <View style={{
+            backgroundColor: colors.muted,
+            padding: 8,
+            borderRadius: 100,
+            zIndex: 1000,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.45,
+            shadowRadius: 5,
+            elevation: 10,
+          }}>
+        <TouchableOpacity onPress={() => setMoodPickerVisible(true)}>
           <HeaderAvatar
             avatarBase64={currentUser.avatarBase64}
             mood={currentUser.mood}
-            size={42}
+            size={AVATAR_SIZE}
             borderColor={colors.primary}
-            onPress={() => setMoodPickerVisible(true)}
           />
-          <View
-            style={[styles.moodBadge, { backgroundColor: colors.primary + "30" }]}
+          <View style={{
+              position: 'absolute',
+              bottom: -8,
+              left: -8,
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.7,
+              shadowRadius: 8,
+              elevation: 16,
+            }}
           >
-            <Text style={styles.moodBadgeEmoji}>{currentUser.mood}</Text>
+            <Text style={{ fontSize: 18 }}>{currentUser.mood}</Text>
           </View>
         </TouchableOpacity>
-
-        {/* Center: partner name */}
-        <View style={styles.headerCenter}>
-          <Text style={[styles.partnerName, { color: colors.foreground }]}>
-            {partner.name}
-          </Text>
-          <View style={styles.onlineRow}>
-            <View
-              style={[styles.onlineDot, { backgroundColor: colors.primary }]}
-            />
-            <Text style={[styles.onlineLabel, { color: colors.mutedForeground }]}>
-              Online
-            </Text>
           </View>
         </View>
 
-        {/* Partner section: mood + avatar + poke */}
-        <View style={styles.partnerSection}>
-          {/* Partner mood badge */}
-          <View
-            style={[
-              styles.partnerMoodWrap,
-              { backgroundColor: colors.accent + "25", borderColor: colors.accent + "40" },
-            ]}
-          >
-            <Text style={{ fontSize: 9, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
-              raspoloženje
-            </Text>
-            <Text style={{ fontSize: 20 }}>{partner.mood}</Text>
-          </View>
 
-          {/* Partner avatar */}
-          <HeaderAvatar
-            avatarBase64={partner.avatarBase64}
-            mood={partner.mood}
-            size={42}
-            borderColor={colors.accent}
-          />
 
-          {/* Poke button */}
-          <TouchableOpacity
-            onPress={handlePoke}
-            style={[styles.pokeBtn, { backgroundColor: colors.accent + "25" }]}
-          >
-            <Text style={{ fontSize: 20 }}>👉</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "position"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
-      >
         <FlatList
+          style={{ flex: 1 }}
           ref={flatListRef}
           data={messages}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={[
+  contentContainerStyle={[
             styles.messageList,
             {
-              paddingBottom: 100,
-              paddingTop:
-                Platform.OS === "web" ? 34 : insets.bottom + 12,
+              paddingHorizontal: 16,
+              paddingBottom: 160,
+              paddingTop: 120,
             },
+
           ]}
           showsVerticalScrollIndicator={false}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
-          inverted={false} // Keep normal order (oldest at top)
+          inverted={false}
           onScroll={({ nativeEvent }) => {
             const { contentOffset } = nativeEvent;
-            // If scrolled to top (within 50 pixels), load more messages
             if (contentOffset.y <= 50 && hasMoreMessages && !isLoadingMore) {
               handleScrollToTop();
             }
@@ -310,11 +316,12 @@ export default function ChatScreen() {
           renderItem={({ item }) => (
             <MessageBubble
               message={item}
-              isMe={item.senderId === currentUser.id} // Provera naspram stvarnog ID-a
+              isMe={item.senderId === currentUser.id}
               currentUser={currentUser}
               partner={partner}
             />
           )}
+          ListFooterComponent={() => <View style={{ height: 150 }} />}
           ListHeaderComponent={
             isLoadingMore ? (
               <View style={styles.loadingMore}>
@@ -328,24 +335,25 @@ export default function ChatScreen() {
                 onPress={handleScrollToTop}
               >
                 <Text style={{ color: colors.primary, fontSize: 14 }}>
-                  Učitaj starije poruke
+                  Učitaj starije poruka
                 </Text>
               </TouchableOpacity>
             ) : null
           }
         />
-      </KeyboardAvoidingView>
-
       {/* Input Bar */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "position"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
-      >
-        <View
+      <View
           style={[
+
             styles.inputBar,
             {
-              backgroundColor: colors.card,
+              position: 'absolute',
+              bottom: keyboardHeight > 0 ? keyboardHeight + 10 : 90,
+              left: 0,
+              right: 0,
+              zIndex: 9999,
+              backgroundColor: 'transparent',
+
               borderTopColor: colors.border,
             },
           ]}
@@ -382,12 +390,7 @@ export default function ChatScreen() {
           <TouchableOpacity
             onPress={handleSend}
             disabled={!text.trim()}
-            style={[
-              styles.sendBtn,
-              {
-                backgroundColor: text.trim() ? colors.primary : colors.muted,
-              },
-            ]}
+            style={[styles.sendBtn, { backgroundColor: text.trim() ? colors.primary : colors.muted }]}
           >
             <Feather
               name="send"
@@ -396,7 +399,6 @@ export default function ChatScreen() {
             />
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
 
       <GifPicker
         visible={gifPickerVisible}
@@ -413,12 +415,24 @@ export default function ChatScreen() {
       />
     </View>
   );
+
+  return chatBackground ? (
+    <ImageBackground
+      source={{ uri: chatBackground }}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+      imageStyle={{ width: '100%', height: '100%' }}
+    >
+      {backgroundContent}
+    </ImageBackground>
+  ) : backgroundContent;
 }
 
 const styles = StyleSheet.create({
   container: { 
     flex: 1,
-    paddingBottom: 80,
+    position: 'relative',
+    paddingTop: 0,
   },
   header: {
     flexDirection: "row",
@@ -431,90 +445,53 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 8,
+    overflow: "visible",
   },
-  mySection: {
+  avatarContainer: {
     alignItems: "center",
-    position: "relative",
   },
   moodBadge: {
     position: "absolute",
-    bottom: -4,
-    right: -4,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    bottom: -6,
+    right: -6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
   moodBadgeEmoji: {
-    fontSize: 13,
-  },
-  headerCenter: {
-    alignItems: "center",
-    flex: 1,
-    paddingHorizontal: 8,
-  },
-  partnerName: {
     fontSize: 16,
-    fontFamily: "Inter_700Bold",
-  },
-  onlineRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 2,
-  },
-  onlineDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  onlineLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-  },
-  partnerSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  partnerMoodWrap: {
-    alignItems: "center",
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-  },
-  pokeBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
   },
   messageList: {
     paddingHorizontal: 0,
   },
   inputBar: {
     position: 'absolute',
-    bottom: 0,
+    bottom: 20,
     left: 0,
     right: 0,
+    zIndex: 2000,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 10,
-    borderTopWidth: 1,
     gap: 8,
     marginBottom: 0,
   },
+
+
   iconBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 5,
+    elevation: 10,
   },
   gifBtnText: {
     fontSize: 11,
@@ -523,13 +500,19 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     minHeight: 44,
-    borderRadius: 22,
+    borderRadius: 25,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 15,
     fontFamily: "Inter_400Regular",
     maxHeight: 120,
     borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 12,
   },
   sendBtn: {
     width: 44,
@@ -537,7 +520,11 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 5,
+    elevation: 10,
   },
   loadingMore: {
     padding: 16,

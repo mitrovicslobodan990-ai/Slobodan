@@ -363,6 +363,20 @@ export async function saveSharedNote(
   }
 }
 
+export async function markNoteSeenBy(
+  conversationId: string,
+  userId: string
+): Promise<void> {
+  if (!database) throw new Error("Firebase not initialized");
+  try {
+    const seenRef = ref(database, `conversations/${conversationId}/sharedNote/seenBy/${userId}`);
+    await set(seenRef, Date.now());
+  } catch (error) {
+    console.error("Error marking note as seen:", error);
+    throw error;
+  }
+}
+
 export async function getSharedNote(conversationId: string): Promise<any | null> {
   if (!database) throw new Error("Firebase not initialized");
 

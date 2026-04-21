@@ -24,7 +24,7 @@ import { THEME_META, ThemeName } from "@/constants/themes";
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { activeTheme, setTheme, isFullscreen, toggleFullscreen, palette } = useTheme();
+  const { activeTheme, setTheme, isFullscreen, toggleFullscreen, palette, chatBackground, setChatBackground } = useTheme();
   const {
     currentUser,
     partner,
@@ -74,6 +74,29 @@ export default function ProfileScreen() {
         },
       },
     ]);
+  };
+
+  const handlePickChatBackground = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Dozvola odbijena", "Potrebna je dozvola za pristup galeriji.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+      allowsEditing: true,
+      aspect: [9, 16],
+    });
+    if (!result.canceled && result.assets[0].uri) {
+      await setChatBackground(result.assets[0].uri);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
+
+  const handleRemoveChatBackground = async () => {
+    await setChatBackground(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   const handleSelectTheme = async (name: ThemeName) => {
@@ -255,6 +278,42 @@ export default function ProfileScreen() {
               );
             })}
           </View>
+        </View>
+
+        {/* === CHAT POZADINA === */}
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
+            POZADINA CHATA
+          </Text>
+          {chatBackground ? (
+            <View style={styles.bgPreviewContainer}>
+              <Image source={{ uri: chatBackground }} style={styles.bgPreview} resizeMode="cover" />
+              <TouchableOpacity
+                onPress={handlePickChatBackground}
+                style={[styles.bgBtn, { backgroundColor: colors.primary }]}
+              >
+                <Feather name="image" size={16} color={colors.primaryForeground} />
+                <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>Promijeni</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleRemoveChatBackground}
+                style={[styles.bgBtn, { backgroundColor: colors.secondary, marginTop: 8 }]}
+              >
+                <Feather name="x" size={16} color={colors.destructive} />
+                <Text style={[styles.saveBtnText, { color: colors.destructive }]}>Ukloni pozadinu</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={handlePickChatBackground}
+              style={[styles.bgPickerBtn, { borderColor: colors.border }]}
+            >
+              <Feather name="image" size={24} color={colors.mutedForeground} />
+              <Text style={[styles.bgPickerText, { color: colors.mutedForeground }]}>
+                Odaberi sliku iz galerije
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* === FULLSCREEN === */}
@@ -568,4 +627,30 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   dangerBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+
+  /* Chat background */
+  bgPreviewContainer: { gap: 8 },
+  bgPreview: {
+    width: "100%",
+    height: 140,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  bgBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  bgPickerBtn: {
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderRadius: 12,
+    paddingVertical: 28,
+    alignItems: "center",
+    gap: 10,
+  },
+  bgPickerText: { fontSize: 14, fontFamily: "Inter_400Regular" },
 });

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Image,
+  Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -29,44 +30,42 @@ function isMessageSeen(message: Message, partnerId: string): boolean {
   return !!(message.seen && message.seen[partnerId]);
 }
 
-function Avatar({
-  user,
-  size = 32,
-}: {
-  user: UserProfile;
-  size?: number;
+function StatusIndicator({ message, partnerId, primaryColor, mutedColor }: {
+  message: Message;
+  partnerId: string;
+  primaryColor: string;
+  mutedColor: string;
 }) {
-  const colors = useColors();
-  const uri = user.avatarBase64
-    ? `data:image/jpeg;base64,${user.avatarBase64}`
-    : null;
+  if (message.status === "pending") {
+    return <Text style={[styles.seenIndicator, { color: mutedColor }]}>⏳</Text>;
+  }
+  return (
+    <Text style={[styles.seenIndicator, { color: isMessageSeen(message, partnerId) ? primaryColor : mutedColor }]}>
+      {isMessageSeen(message, partnerId) ? "✓✓" : "✓"}
+    </Text>
+  );
+}
 
-  return uri ? (
-    <Image
-      source={{ uri }}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        borderWidth: 1.5,
-        borderColor: colors.border,
-      }}
-    />
-  ) : (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        backgroundColor: colors.secondary,
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: 1.5,
-        borderColor: colors.border,
-      }}
-    >
-      <Text style={{ fontSize: size * 0.55 }}>{user.mood}</Text>
-    </View>
+const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+
+function MessageText({ text, color }: { text: string; color: string }) {
+  const parts = text.split(URL_REGEX);
+  return (
+    <Text style={[styles.messageText, { color }]}>
+      {parts.map((part, i) =>
+        URL_REGEX.test(part) ? (
+          <Text
+            key={i}
+            style={styles.linkText}
+            onPress={() => Linking.openURL(part)}
+          >
+            {part}
+          </Text>
+        ) : (
+          <Text key={i}>{part}</Text>
+        )
+      )}
+    </Text>
   );
 }
 
@@ -76,63 +75,34 @@ export function MessageBubble({ message, isMe, currentUser, partner }: MessageBu
 
   const bubbleBg = isMe ? colors.myBubble : colors.theirBubble;
   const bubbleTextColor = isMe ? colors.myBubbleText : colors.theirBubbleText;
-  const sender = isMe ? currentUser : partner;
 
   if (message.type === "poke") {
+    const isHeart = message.text === "❤️";
     return (
       <View style={styles.pokeContainer}>
-        <View
-          style={[
-            styles.pokeBubble,
-            {
-              backgroundColor: colors.secondary,
-              borderColor: colors.primary,
-            },
-          ]}
-        >
+        <View style={[styles.pokeBubble, { backgroundColor: colors.secondary, borderColor: colors.primary }]}>
           <Text style={[styles.pokeText, { color: colors.primary }]}>
-            👉 {isMe ? "Bocnuo/la si ga/je!" : "Bocnuo/la te!"}
+            {isHeart
+              ? (isMe ? "❤️ Poslao/la si srce!" : "❤️ Poslao/la ti srce!")
+              : (isMe ? "👉 Bocnuo/la si ga/je!" : "👉 Bocnuo/la te!")}
           </Text>
         </View>
         <View style={styles.timestampRow}>
           <Text style={[styles.timestamp, { color: colors.mutedForeground }]}>
             {formatTime(message.timestamp)}
           </Text>
-          {isMe && (
-            <Text style={[styles.seenIndicator, { color: isMessageSeen(message, partner.id) ? colors.primary : colors.mutedForeground }]}>
-              {isMessageSeen(message, partner.id) ? "✓✓" : "✓"}
-            </Text>
-          )}
+          {isMe && <StatusIndicator message={message} partnerId={partner.id} primaryColor={colors.primary} mutedColor={colors.mutedForeground} />}
         </View>
       </View>
     );
   }
 
   return (
-    <View
-      style={[
-        styles.row,
-        isMe ? styles.rowMe : styles.rowThem,
-      ]}
-    >
-      {!isMe && (
-        <View style={styles.avatarWrap}>
-          <Avatar user={sender} size={30} />
-        </View>
-      )}
-
+    <View style={[styles.row, isMe ? styles.rowMe : styles.rowThem]}>
       <View style={[styles.bubbleWrap, isMe ? styles.bubbleWrapMe : styles.bubbleWrapThem]}>
         {message.type === "media" && message.mediaBase64 ? (
           <TouchableOpacity onPress={() => setPhotoVisible(true)}>
-            <View
-              style={[
-                styles.imageBubble,
-                {
-                  borderColor: isMe ? colors.myBubble : colors.border,
-                  shadowColor: colors.primary,
-                },
-              ]}
-            >
+            <View style={[styles.imageBubble, { borderColor: isMe ? colors.myBubble : colors.border, shadowColor: colors.primary }]}>
               <Image
                 source={{ uri: `data:image/jpeg;base64,${message.mediaBase64}` }}
                 style={styles.messageImage}
@@ -140,72 +110,31 @@ export function MessageBubble({ message, isMe, currentUser, partner }: MessageBu
               />
             </View>
             <View style={styles.timestampRow}>
-              <Text
-                style={[
-                  styles.timestamp,
-                  {
-                    color: colors.mutedForeground,
-                    textAlign: isMe ? "right" : "left",
-                  },
-                ]}
-              >
+              <Text style={[styles.timestamp, { color: colors.mutedForeground, textAlign: isMe ? "right" : "left" }]}>
                 {formatTime(message.timestamp)}
               </Text>
-              {isMe && (
-                <Text style={[styles.seenIndicator, { color: isMessageSeen(message, partner.id) ? colors.primary : colors.mutedForeground }]}>
-                  {isMessageSeen(message, partner.id) ? "✓✓" : "✓"}
-                </Text>
-              )}
+              {isMe && <StatusIndicator message={message} partnerId={partner.id} primaryColor={colors.primary} mutedColor={colors.mutedForeground} />}
             </View>
-            <PhotoViewer
-              visible={photoVisible}
-              uri={`data:image/jpeg;base64,${message.mediaBase64}`}
-              onClose={() => setPhotoVisible(false)}
-            />
+            <PhotoViewer visible={photoVisible} uri={`data:image/jpeg;base64,${message.mediaBase64}`} onClose={() => setPhotoVisible(false)} />
           </TouchableOpacity>
         ) : message.type === "gif" && message.gifUrl ? (
           <TouchableOpacity onPress={() => setPhotoVisible(true)}>
-            <View
-              style={[
-                styles.imageBubble,
-                { borderColor: isMe ? colors.myBubble : colors.border },
-              ]}
-            >
-              <Image
-                source={{ uri: message.gifUrl }}
-                style={styles.messageImage}
-                resizeMode="cover"
-              />
+            <View style={[styles.imageBubble, { borderColor: isMe ? colors.myBubble : colors.border }]}>
+              <Image source={{ uri: message.gifUrl }} style={styles.messageImage} resizeMode="cover" />
               <View style={styles.gifBadge}>
                 <Text style={styles.gifBadgeText}>GIF</Text>
               </View>
             </View>
             <View style={styles.timestampRow}>
-              <Text
-                style={[
-                  styles.timestamp,
-                  {
-                    color: colors.mutedForeground,
-                    textAlign: isMe ? "right" : "left",
-                  },
-                ]}
-              >
+              <Text style={[styles.timestamp, { color: colors.mutedForeground, textAlign: isMe ? "right" : "left" }]}>
                 {formatTime(message.timestamp)}
               </Text>
-              {isMe && (
-                <Text style={[styles.seenIndicator, { color: isMessageSeen(message, partner.id) ? colors.primary : colors.mutedForeground }]}>
-                  {isMessageSeen(message, partner.id) ? "✓✓" : "✓"}
-                </Text>
-              )}
+              {isMe && <StatusIndicator message={message} partnerId={partner.id} primaryColor={colors.primary} mutedColor={colors.mutedForeground} />}
             </View>
-            <PhotoViewer
-              visible={photoVisible}
-              uri={message.gifUrl}
-              onClose={() => setPhotoVisible(false)}
-            />
+            <PhotoViewer visible={photoVisible} uri={message.gifUrl} onClose={() => setPhotoVisible(false)} />
           </TouchableOpacity>
         ) : (
-          <View>
+          <View style={[styles.bubbleContainer, isMe ? styles.bubbleContainerMe : styles.bubbleContainerThem]}>
             <View
               style={[
                 styles.bubble,
@@ -213,40 +142,22 @@ export function MessageBubble({ message, isMe, currentUser, partner }: MessageBu
                   backgroundColor: bubbleBg,
                   borderColor: isMe ? "transparent" : colors.border,
                   shadowColor: isMe ? colors.primary : "#000",
+                  borderBottomRightRadius: isMe ? 4 : 20,
+                  borderBottomLeftRadius: isMe ? 20 : 4,
                 },
               ]}
             >
-              <Text style={[styles.messageText, { color: bubbleTextColor }]}>
-                {message.text}
-              </Text>
-            </View>
-            <View style={styles.timestampRow}>
-              <Text
-                style={[
-                  styles.timestamp,
-                  {
-                    color: colors.mutedForeground,
-                    textAlign: isMe ? "right" : "left",
-                  },
-                ]}
-              >
-                {formatTime(message.timestamp)}
-              </Text>
-              {isMe && (
-                <Text style={[styles.seenIndicator, { color: isMessageSeen(message, partner.id) ? colors.primary : colors.mutedForeground }]}>
-                  {isMessageSeen(message, partner.id) ? "✓✓" : "✓"}
-                </Text>
-              )}
+              <MessageText text={message.text ?? ""} color={bubbleTextColor} />
             </View>
           </View>
         )}
-      </View>
-
-      {isMe && (
-        <View style={styles.avatarWrap}>
-          <Avatar user={sender} size={30} />
+        <View style={[styles.timestampRow, { justifyContent: isMe ? "flex-end" : "flex-start", paddingHorizontal: 8 }]}>
+          <Text style={[styles.timestamp, { color: colors.mutedForeground, textAlign: isMe ? "right" : "left" }]}>
+            {formatTime(message.timestamp)}
+          </Text>
+          {isMe && <StatusIndicator message={message} partnerId={partner.id} primaryColor={colors.primary} mutedColor={colors.mutedForeground} />}
         </View>
-      )}
+      </View>
     </View>
   );
 }
@@ -256,23 +167,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     marginVertical: 2,
-    paddingHorizontal: 8,
+    paddingHorizontal: 0,
   },
-  rowMe: {
-    justifyContent: "flex-end",
-  },
-  rowThem: {
-    justifyContent: "flex-start",
-  },
-  avatarWrap: {
-    marginHorizontal: 6,
-    marginBottom: 18,
-  },
-  bubbleWrap: {
-    maxWidth: "72%",
-  },
+  rowMe: { justifyContent: "flex-end" },
+  rowThem: { justifyContent: "flex-start" },
+  bubbleWrap: { maxWidth: "80%" },
   bubbleWrapMe: {},
   bubbleWrapThem: {},
+  bubbleContainer: {},
+  bubbleContainerMe: {},
+  bubbleContainerThem: {},
   bubble: {
     borderRadius: 20,
     paddingHorizontal: 14,
@@ -288,11 +192,23 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     lineHeight: 21,
   },
+  linkText: {
+    color: "#60a5fa",
+    textDecorationLine: "underline",
+  },
+  timestampRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+  },
   timestamp: {
     fontSize: 10,
     fontFamily: "Inter_400Regular",
-    marginTop: 3,
-    marginHorizontal: 4,
+  },
+  seenIndicator: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
   },
   imageBubble: {
     borderRadius: 16,
@@ -337,14 +253,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_500Medium",
   },
-  timestampRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 4,
-  },
-  seenIndicator: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-  },
 });
+
+export default MessageBubble;

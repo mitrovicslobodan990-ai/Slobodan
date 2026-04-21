@@ -17,7 +17,6 @@ router.post("/register", async (req, res) => {
 
   try {
     const admin = await getFirebaseAdmin();
-    // Upisujemo token pod ID-em korisnika (npr. pushTokens/slobodan)
     await admin.database().ref(`pushTokens/${userId}`).set(token);
     console.log(`✅ Token registrovan za: ${userId}`);
     return res.json({ ok: true });
@@ -28,11 +27,16 @@ router.post("/register", async (req, res) => {
 });
 
 router.post("/notify", async (req, res) => {
-  // IZMENA: Više ne izvlačimo 'token' iz req.body jer ne želimo da mu verujemo
-  const { toUserId, title, body, data } = req.body;
+  const { fromUserId, toUserId, title, body, data } = req.body;
 
   if (typeof title !== "string" || typeof body !== "string") {
     return res.status(400).json({ error: "title and body are required" });
+  }
+
+  // Spriječi eho notifikacije — pošiljalac ne smije biti isti kao primalac
+  if (typeof fromUserId === "string" && typeof toUserId === "string" && fromUserId === toUserId) {
+    console.log(`⚠️ Blokirana eho notifikacija: fromUserId === toUserId (${fromUserId})`);
+    return res.json({ ok: true, skipped: true });
   }
 
   try {

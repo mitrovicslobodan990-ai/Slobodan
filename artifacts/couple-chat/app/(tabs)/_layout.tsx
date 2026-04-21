@@ -8,6 +8,27 @@ import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+import { useApp } from "@/context/AppContext";
+
+function TabIcon({ name, color, active, colors, badge }: { name: any; color: string; active: boolean; colors: any; badge?: boolean }) {
+  return (
+    <View style={{
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: badge ? '#e53935' : active ? colors.primary : colors.muted,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.45,
+      shadowRadius: 5,
+      elevation: 10,
+    }}>
+      <Feather name={name} size={20} color={(active || badge) ? colors.primaryForeground : color} />
+    </View>
+  );
+}
 
 function NativeTabLayout() {
   return (
@@ -34,70 +55,55 @@ function ClassicTabLayout() {
   const isDark = colorScheme === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+  const { hasUnseenNote } = useApp();
 
   return (
     <Tabs
-      screenOptions={{
+        screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
         tabBarHideOnKeyboard: true,
+
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.card,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 100,
           elevation: 0,
-          height: isWeb ? 84 : undefined,
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          height: isWeb ? 84 : 70,
         },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : isWeb ? (
-            <View
-              style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]}
-            />
-          ) : null,
+        tabBarBackground: () => null,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Chat",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="message.circle.fill" tintColor={color} size={24} />
-            ) : (
-              <Feather name="message-circle" size={22} color={color} />
-            ),
+          title: "",
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="message-circle" color={color} active={focused} colors={colors} />
+          ),
         }}
       />
       <Tabs.Screen
         name="notes"
         options={{
-          title: "Beleške",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="note.text" tintColor={color} size={24} />
-            ) : (
-              <Feather name="book-open" size={22} color={color} />
-            ),
+          title: "",
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="book-open" color={color} active={focused} colors={colors} badge={!focused && hasUnseenNote} />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profil",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="person.circle.fill" tintColor={color} size={24} />
-            ) : (
-              <Feather name="user" size={22} color={color} />
-            ),
+          title: "",
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="user" color={color} active={focused} colors={colors} />
+          ),
         }}
       />
     </Tabs>
@@ -105,8 +111,5 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
   return <ClassicTabLayout />;
 }

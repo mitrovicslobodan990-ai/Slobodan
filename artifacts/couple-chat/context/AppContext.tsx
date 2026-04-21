@@ -10,7 +10,7 @@ import {
   estimateBase64Size,
   IMAGE_COMPRESSION_SETTINGS,
 } from "@/lib/imageCompression";
-import { initializeFirebase, updateUserProfile, listenToUserProfile, saveMessage, listenToMessagesPaginated, saveSharedNote, listenToSharedNote, getMessagesPaginated, markMessagesAsSeen as markMessagesAsSeenFirebase } from "@/lib/firebase";
+import { initializeFirebase, updateUserProfile, listenToUserProfile, saveMessage, listenToMessagesPaginated, saveSharedNote, listenToSharedNote, getMessagesPaginated, markMessagesAsSeen as markMessagesAsSeenFirebase, markNoteSeenBy } from "@/lib/firebase";
 
 export interface Message {
   id: string;
@@ -22,6 +22,7 @@ export interface Message {
   timestamp: number;
   type: "text" | "media" | "gif" | "poke";
   seen?: { [userId: string]: number };
+  status?: "sent" | "pending";
 }
 
 export interface UserProfile {
@@ -47,6 +48,7 @@ interface AppContextValue {
   updateAvatar: (base64: string) => void;
   sendMessage: (msg: Omit<Message, "id" | "timestamp" | "senderId">) => void;
   sendPoke: () => void;
+  sendHeart: () => void;
   updateSharedNote: (content: string) => void;
   clearMessages: () => void;
   setUserRole: (role: 'slobodan' | 'aleksandra') => void;
@@ -60,6 +62,8 @@ interface AppContextValue {
   loadMoreMessages: () => Promise<void>;
   isLoadingMore: boolean;
   markMessagesAsSeen: (messageIds: string[]) => Promise<void>;
+  hasUnseenNote: boolean;
+  markNoteSeen: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -73,6 +77,15 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "391581056312",
   appId: "1:391581056312:android:bcfbae03d2a9c0c28ad5cd",
 };
+
+async function isOnline(): Promise<boolean> {
+  try {
+    const res = await fetch("https://www.google.com/generate_204", { method: "HEAD" });
+    return res.status === 204 || res.ok;
+  } catch {
+    return false;
+  }
+}
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<UserProfile>({
@@ -96,13 +109,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     lastEditedBy: "me",
     lastEditedAt: Date.now(),
   });
-  
+
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [giphyApiKey, setGiphyApiKey] = useState<string>("");
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentMessageLimit, setCurrentMessageLimit] = useState(30);
+  const [hasUnseenNote, setHasUnseenNote] = useState(false);
 
   const getConversationId = useCallback((user1Id: string, user2Id: string): string => {
     return [user1Id, user2Id].sort().join("_");
@@ -126,7 +140,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const isSlobodan = role === 'slobodan';
         setCurrentUser(prev => ({ ...prev, id: role, name: isSlobodan ? 'Slobodan' : 'Aleksandra' }));
       }
-      
+
       if (storedPartner) setPartner(JSON.parse(storedPartner));
       if (storedMessages) setMessages(JSON.parse(storedMessages));
       if (storedNote) setSharedNote(JSON.parse(storedNote));
@@ -154,19 +168,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentUser.id]);
 
-  // ✨ IZMENJENA FUNKCIJA: Uklonjen expoPushToken iz payload-a
   const notifyPartner = useCallback(async (title: string, body: string) => {
     try {
       const API_BASE_URL = "https://couple-chat-api.onrender.com";
       const payload: Record<string, unknown> = {
+        fromUserId: currentUser.id,
         toUserId: partner.id,
         title,
         body,
       };
-      
-      // VIŠE NE ŠALJEMO payload.token = expoPushToken;
-      // Server će sada biti primoran da pogleda u bazu i uzme partnerov token.
-
       const response = await fetch(`${API_BASE_URL}/api/push/notify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -176,7 +186,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("❌ Failed to send push notification:", error);
     }
-  }, [partner.id]); // Uklonjen expoPushToken iz zavisnosti
+  }, [currentUser.id, partner.id]);
 
   useEffect(() => {
     loadPersistedData();
@@ -185,7 +195,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isInitialized && FIREBASE_CONFIG) {
       initializeFirebase(FIREBASE_CONFIG);
-      
+
       const unsubscribeCurrent = listenToUserProfile(currentUser.id, (profile) => {
         if (profile) setCurrentUser(prev => ({ ...prev, ...profile }));
       });
@@ -198,7 +208,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const unsubscribeMessages = listenToMessagesPaginated(conversationId, currentMessageLimit, (firebaseMessages, hasMore) => {
         if (firebaseMessages.length > 0) {
           const sortedMessages = firebaseMessages.sort((a, b) => a.timestamp - b.timestamp);
-          setMessages(sortedMessages);
+          // Zadrzи pending poruke koje jos nisu stigle na Firebase
+          setMessages(prev => {
+            const pendingOnly = prev.filter(m => m.status === "pending" && !sortedMessages.find(f => f.id === m.id));
+            return [...sortedMessages, ...pendingOnly];
+          });
           AsyncStorage.setItem("messages", JSON.stringify(sortedMessages));
         }
         setHasMoreMessages(hasMore);
@@ -208,6 +222,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (firebaseNote) {
           setSharedNote(firebaseNote);
           AsyncStorage.setItem("sharedNote", JSON.stringify(firebaseNote));
+          // Proveri da li partner ima neprocitane beleske
+          const seenBy: Record<string, number> = firebaseNote.seenBy || {};
+          const lastEdit: number = firebaseNote.lastEditedAt || 0;
+          const editedByPartner = firebaseNote.lastEditedBy !== currentUser.name;
+          const partnerSeenTs = seenBy[currentUser.id] || 0;
+          setHasUnseenNote(editedByPartner && partnerSeenTs < lastEdit);
         }
       });
 
@@ -233,14 +253,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         senderId: currentUser.id,
         timestamp: Date.now(),
         seen: { [currentUser.id]: Date.now() },
+        status: "pending",
         ...msg,
       };
-      
+
+      setMessages(prev => [...prev, newMsg]);
+
+      const connected = await isOnline();
       const conversationId = getConversationId(currentUser.id, partner.id);
-      await saveMessage(newMsg, conversationId);
-      
-      const notificationBody = msg.type === "text" ? msg.text ?? "Nova poruka" : "Poslao/la vam je nešto lepo 💌";
-      notifyPartner(`Poruka od: ${currentUser.name}`, notificationBody);
+
+      if (connected) {
+        await saveMessage({ ...newMsg, status: "sent" }, conversationId);
+        setMessages(prev => prev.map(m => m.id === newMsg.id ? { ...m, status: "sent" } : m));
+        const notificationBody = msg.type === "text" ? msg.text ?? "Nova poruka" : "Poslao/la vam je nešto lepo 💌";
+        notifyPartner(`Poruka od: ${currentUser.name}`, notificationBody);
+      } else {
+        const pendingRaw = await AsyncStorage.getItem("pendingMessages");
+        const pending: Message[] = pendingRaw ? JSON.parse(pendingRaw) : [];
+        pending.push(newMsg);
+        await AsyncStorage.setItem("pendingMessages", JSON.stringify(pending));
+      }
     } catch (error) {
       console.error("Error sending message:", error);
     }
@@ -260,19 +292,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     notifyPartner("👉 Boc!", `${currentUser.name} te je bocnuo/la!`);
   }, [currentUser, partner, notifyPartner, getConversationId]);
 
+  const sendHeart = useCallback(async () => {
+    const heartMsg: Message = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      senderId: currentUser.id,
+      text: "❤️",
+      timestamp: Date.now(),
+      type: "poke",
+      seen: { [currentUser.id]: Date.now() },
+    };
+    const conversationId = getConversationId(currentUser.id, partner.id);
+    await saveMessage(heartMsg, conversationId);
+    notifyPartner("❤️", `${currentUser.name} ti je poslao/la srce!`);
+  }, [currentUser, partner, notifyPartner, getConversationId]);
+
   const setUserRole = useCallback(async (role: 'slobodan' | 'aleksandra') => {
     const isSlobodan = role === 'slobodan';
     const newCurrentUser = { ...currentUser, id: role, name: isSlobodan ? 'Slobodan' : 'Aleksandra' };
     const newPartner = { ...partner, id: isSlobodan ? 'aleksandra' : 'slobodan', name: isSlobodan ? 'Aleksandra' : 'Slobodan' };
-    
+
     setCurrentUser(newCurrentUser);
     setPartner(newPartner);
-    
+
     await AsyncStorage.setItem("userRole", role);
     await AsyncStorage.setItem("currentUser", JSON.stringify(newCurrentUser));
     await AsyncStorage.setItem("partner", JSON.stringify(newPartner));
-    
-    // Forsiraj ponovnu registraciju tokena za novu ulogu
+
     if (expoPushToken) {
       registerPushToken(expoPushToken);
     }
@@ -289,10 +334,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [currentUser.id]);
 
   const updateSharedNote = useCallback(async (content: string) => {
-    const updated = { ...sharedNote, content, lastEditedBy: currentUser.name, lastEditedAt: Date.now() };
+    const updated = { ...sharedNote, content, lastEditedBy: currentUser.name, lastEditedAt: Date.now(), seenBy: { [currentUser.id]: Date.now() } };
     setSharedNote(updated);
     await saveSharedNote(getConversationId(currentUser.id, partner.id), updated);
   }, [sharedNote, currentUser, partner, getConversationId]);
+
+  const markNoteSeen = useCallback(async () => {
+    const conversationId = getConversationId(currentUser.id, partner.id);
+    await markNoteSeenBy(conversationId, currentUser.id);
+    setHasUnseenNote(false);
+  }, [currentUser.id, partner.id, getConversationId]);
 
   const updateGiphyApiKey = useCallback(async (key: string) => {
     setGiphyApiKey(key);
@@ -321,13 +372,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await markMessagesAsSeenFirebase(conversationId, messageIds, currentUser.id);
   }, [currentUser.id, partner.id, getConversationId]);
 
+  // Retry pending poruka svakih 5s
+  useEffect(() => {
+    const retryPending = async () => {
+      const pendingRaw = await AsyncStorage.getItem("pendingMessages");
+      if (!pendingRaw) return;
+      const pending: Message[] = JSON.parse(pendingRaw);
+      if (pending.length === 0) return;
+
+      const connected = await isOnline();
+      if (!connected) return;
+
+      const conversationId = getConversationId(currentUser.id, partner.id);
+      for (const msg of pending) {
+        try {
+          await saveMessage({ ...msg, status: "sent" }, conversationId);
+          setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, status: "sent" } : m));
+        } catch (e) {
+          console.error("Retry failed for message:", msg.id);
+          return;
+        }
+      }
+      await AsyncStorage.removeItem("pendingMessages");
+    };
+
+    const interval = setInterval(retryPending, 5000);
+    return () => clearInterval(interval);
+  }, [currentUser.id, partner.id, getConversationId]);
+
   return (
     <AppContext.Provider value={{
       currentUser, partner, messages, sharedNote, updateMood, updateAvatar,
-      sendMessage, sendPoke, updateSharedNote, clearMessages: () => {},
+      sendMessage, sendPoke, sendHeart, updateSharedNote, clearMessages: () => {},
       setUserRole, expoPushToken, registerPushToken, notifyPartner, isInitialized,
       giphyApiKey, updateGiphyApiKey, hasMoreMessages, loadMoreMessages,
-      isLoadingMore, markMessagesAsSeen
+      isLoadingMore, markMessagesAsSeen, hasUnseenNote, markNoteSeen
     }}>
       {children}
     </AppContext.Provider>

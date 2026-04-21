@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Platform,
   ScrollView,
@@ -19,9 +19,13 @@ export default function NotesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { isFullscreen, palette } = useTheme();
-  const { sharedNote, updateSharedNote, currentUser } = useApp();
+  const { sharedNote, updateSharedNote, currentUser, markNoteSeen } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(sharedNote.content);
+
+  useEffect(() => {
+    markNoteSeen();
+  }, []);
 
   const topPad = isFullscreen
     ? 10

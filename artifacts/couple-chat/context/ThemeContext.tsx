@@ -8,6 +8,8 @@ interface ThemeContextValue {
   setTheme: (name: ThemeName) => void;
   isFullscreen: boolean;
   toggleFullscreen: () => void;
+  chatBackground: string | null;
+  setChatBackground: (uri: string | null) => Promise<void>;
 }
 
 const defaultTheme: ThemeContextValue = {
@@ -16,6 +18,8 @@ const defaultTheme: ThemeContextValue = {
   setTheme: () => {},
   isFullscreen: false,
   toggleFullscreen: () => {},
+  chatBackground: null,
+  setChatBackground: async () => {},
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -23,12 +27,16 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [activeTheme, setActiveTheme] = useState<ThemeName>("cyberNight");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [chatBackground, setChatBackgroundState] = useState<string | null>(null);
 
   useEffect(() => {
-    AsyncStorage.multiGet(["activeTheme", "isFullscreen"]).then(([themeEntry, fsEntry]) => {
-      if (themeEntry[1]) setActiveTheme(themeEntry[1] as ThemeName);
-      if (fsEntry[1]) setIsFullscreen(fsEntry[1] === "true");
-    });
+    AsyncStorage.multiGet(["activeTheme", "isFullscreen", "chatBackground"]).then(
+      ([themeEntry, fsEntry, bgEntry]) => {
+        if (themeEntry[1]) setActiveTheme(themeEntry[1] as ThemeName);
+        if (fsEntry[1]) setIsFullscreen(fsEntry[1] === "true");
+        if (bgEntry[1]) setChatBackgroundState(bgEntry[1]);
+      }
+    );
   }, []);
 
   const setTheme = useCallback(async (name: ThemeName) => {
@@ -44,10 +52,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setChatBackground = useCallback(async (uri: string | null) => {
+    setChatBackgroundState(uri);
+    if (uri) {
+      await AsyncStorage.setItem("chatBackground", uri);
+    } else {
+      await AsyncStorage.removeItem("chatBackground");
+    }
+  }, []);
+
   const palette = { ...THEMES[activeTheme], radius };
 
   return (
-    <ThemeContext.Provider value={{ activeTheme, palette, setTheme, isFullscreen, toggleFullscreen }}>
+    <ThemeContext.Provider value={{ activeTheme, palette, setTheme, isFullscreen, toggleFullscreen, chatBackground, setChatBackground }}>
       {children}
     </ThemeContext.Provider>
   );
